@@ -1,9 +1,9 @@
 # Build stage
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --legacy-peer-deps
-COPY . .
+COPY frontend/. .
 # Build without specific environment variables - we'll inject them at runtime
 RUN npm run build
 
