@@ -1,8 +1,8 @@
-namespace: video-hosting-example
+namespace: youtube-example
 
 frontend-site:
   defines: netlify/site
-  name: monk-video-hosting-example-dlu19
+  name: monk-youtube-example-dku
   force_ssl: false
   secret_ref: default-netlify-pat
   permitted-secrets:
@@ -11,114 +11,58 @@ frontend-site:
     data:
       protocol: custom
 
-redis:
-  defines: runnable
-  inherits: redis/redis
-  variables:
-    redis_empty_password:
-      type: string
-      env: ALLOW_EMPTY_PASSWORD
-      description: Allows Redis to start with an empty password.
-      value: yes
-    redis_port:
-      type: int
-      env: REDIS_PORT
-      description: Port on which Redis listens.
-      value: 6379
-    redis_instance_name:
-      type: string
-      env: REDIS_INSTANCE_NAME
-      description: Name of the Redis instance.
-      value: master
-    redis_disable_commands:
-      type: string
-      env: REDIS_DISABLE_COMMANDS
-      description: Commands to disable in Redis.
-      value: "FLUSHDB,FLUSHALL,CONFIG"
-    redis_io_threads_do_reads:
-      type: string
-      env: REDIS_IO_THREADS_DO_READS
-      description: Enable Redis IO threads for reads.
-      value: yes
-    redis_io_thread:
-      type: string
-      env: REDIS_IO_THREADS
-      description: Number of Redis IO threads.
-      value: 1
-
-mongodb-project:
-  defines: mongodb-atlas/project
-  name: video-hosting-example
-  organization: <- secret("default-mongodb-org")
-  secret_ref: default-mongodb-token
-  services:
-    data:
-      protocol: custom
-  permitted-secrets:
-    default-mongodb-token: true
-    default-mongodb-org: true
-
-mongodb-user:
-  defines: mongodb-atlas/user
-  name: video-hosting-example-user
-  role: atlasAdmin
-  secret_ref: default-mongodb-token
-  password_secret_ref: mongodb-password
-  project_id: <- connection-target("project") entity-state get-member("id")
-  services:
-    data:
-      protocol: custom
-  depends:
-    wait-for:
-      runnables:
-        - video-hosting-example/mongodb-project
-      timeout: 60
-  connections:
-    project:
-      target: video-hosting-example/mongodb-project
-      service: data
-  permitted-secrets:
-    default-mongodb-token: true
-    default-mongodb-org: true
-    mongodb-password: true
-
-mongodb-database:
-  defines: mongodb-atlas/cluster
-  name: video-hosting-example-cluster
-  project_id: <- connection-target("project") entity-state get-member("id")
+redis-subscription:
+  defines: redis-cloud/subscription
+  name: monk-youtube-example-redis
+  subscription_type: essentials
+  size: 30
   provider: AWS
-  region: US_EAST_1
-  instance_size: M0
-  node_count: 3
-  secret_ref: default-mongodb-token
-  allow_ips:
-    - 0.0.0.0/0
+  region: us-east-1
+  redis_flex: false
+  availability: No replication
+  support_data_persistence: false
+  support_instant_and_daily_backups: false
+  support_replication: false
+  support_clustering: false
+  support_ssl: false
+  account_key_secret: default-redis-cloud-account-key
+  user_key_secret: default-redis-cloud-user-key
   services:
-    data:
+    subscription:
+      protocol: custom
+  permitted-secrets:
+    default-redis-cloud-account-key: true
+    default-redis-cloud-user-key: true
+
+redis:
+  defines: redis-cloud/database
+  name: monk-youtube-example-redis-db
+  subscription_id: <- connection-target("redis-cloud-subscription") entity-state get-member("id")
+  subscription_type: <- connection-target("redis-cloud-subscription") entity-state get-member("type")
+  account_key_secret: default-redis-cloud-account-key
+  user_key_secret: default-redis-cloud-user-key
+  password_secret: default-redis-cloud-db-password
+  services:
+    db:
       protocol: custom
   depends:
     wait-for:
       runnables:
-        - video-hosting-example/mongodb-project
+        - youtube-example/redis-subscription
       timeout: 60
   connections:
-    project:
-      target: video-hosting-example/mongodb-project
-      service: data
-  checks:
-    readiness:
-      period: 10
-      initialDelay: 2
-      attempts: 30
+    redis-cloud-subscription:
+      target: youtube-example/redis-subscription
+      service: subscription
   permitted-secrets:
-    default-mongodb-token: true
-    default-mongodb-org: true
+    default-redis-cloud-account-key: true
+    default-redis-cloud-user-key: true
+    default-redis-cloud-db-password: true
 
 backend:
   defines: runnable
   permitted-secrets:
     default-redis-cloud-db-password: true
-    mongodb-password: true
   metadata:
     name: backend
     description: "Go-based backend API for a YouTube-like video platform. Handles user, video, and job management, connects to MongoDB, Redis, and MinIO for data, queue, and storage. Exposes HTTP API for frontend and worker interaction."
@@ -126,7 +70,6 @@ backend:
     main:
       image: "backend"
       image-tag: "latest"
-      # entrypoint: sleep 36000
   services:
     http:
       description: HTTP API service for frontend and worker communication.
@@ -137,28 +80,23 @@ backend:
       container: main
   connections:
     mongodb:
-      target: video-hosting-example/mongodb-database
-      service: data
+      target: youtube-example/mongodb
+      service: mongodb
     redis:
-      target: video-hosting-example/redis
-      service: redis-svc
+      target: youtube-example/redis
+      service: db
     minio:
-      target: video-hosting-example/minio
+      target: youtube-example/minio
       service: api
     frontend:
-      target: video-hosting-example/frontend-site
-      service: data
-    user:
-      target: video-hosting-example/mongodb-user
+      target: youtube-example/frontend-site
       service: data
   depends:
     wait-for:
       runnables:
-        - video-hosting-example/mongodb-project
-        - video-hosting-example/mongodb-user
-        - video-hosting-example/mongodb-database
-        - video-hosting-example/redis
-        - video-hosting-example/minio
+        - youtube-example/mongodb
+        - youtube-example/redis
+        - youtube-example/minio
       timeout: 60
   variables:
     port:
@@ -166,28 +104,25 @@ backend:
       env: PORT
       description: Port for the backend HTTP server to listen on.
       value: 8080
-    mongodb-username:
-      env: MONGODB_USERNAME
-      value: <- connection-target("user") entity get-member("name")
+    mongodb-hostname:
       type: string
-    mongodb-password:
-      env: MONGODB_PASSWORD
-      value: <- secret("mongodb-password")
-      type: string
-    mongodb-connection-string:
-      env: MONGODB_CONNECTION_STRING
-      value: <- connection-target("mongodb") entity-state get-member("connection_srv")
-      type: string
+      value: <- connection-hostname("mongodb")
     mongodb-uri:
       type: string
       env: MONGODB_URI
       description: MongoDB connection URI for database access.
-      value: <- $mongodb-connection-string replace("mongodb+srv://", `mongodb+srv://${mongodb-username}:${mongodb-password}@`)
+      value: <- `mongodb://${global-mongo-init-username}:${global-mongo-init-password}@${mongodb-hostname}:27017/${global-mongo-init-database}?authSource=admin`
+    redis-username:
+      type: string
+      value: <- connection-target("redis") entity-state get-member("username")
+    redis-password:
+      type: string
+      value: <- secret("default-redis-cloud-db-password")
     redis-uri:
       type: string
       env: REDIS_URI
       description: Redis connection URI for job queue and caching.
-      value: <- `redis://` connection-hostname("redis") ":" connection-port("redis") concat-all
+      value: <- `redis://${redis-username}:${redis-password}@` connection-target("redis") entity-state get-member("publicEndpoint") concat-all
     minio-endpoint:
       type: string
       env: MINIO_ENDPOINT
@@ -239,6 +174,8 @@ backend:
       env: GO_ENV
       description: Go environment (development/production).
       value: development
+  permitted-secrets:
+    default-redis-cloud-db-password: true
 
 worker:
   defines: runnable
@@ -247,7 +184,6 @@ worker:
     description: "Go-based video processing worker. Consumes jobs from Redis, processes videos using FFmpeg, stores results in MinIO, and updates MongoDB. Multiple instances can be run for scalability."
   permitted-secrets:
     default-redis-cloud-db-password: true
-    mongodb-password: true
   containers:
     main:
       image: "worker"
@@ -255,25 +191,20 @@ worker:
   services: {}
   connections:
     mongodb:
-      target: video-hosting-example/mongodb-database
-      service: data
+      target: youtube-example/mongodb
+      service: mongodb
     redis:
-      target: video-hosting-example/redis
-      service: redis-svc
+      target: youtube-example/redis
+      service: db
     minio:
-      target: video-hosting-example/minio
+      target: youtube-example/minio
       service: api
-    user:
-      target: video-hosting-example/mongodb-user
-      service: data
   depends:
     wait-for:
       runnables:
-        - video-hosting-example/mongodb-project
-        - video-hosting-example/mongodb-user
-        - video-hosting-example/mongodb-database
-        - video-hosting-example/redis
-        - video-hosting-example/minio
+        - youtube-example/mongodb
+        - youtube-example/redis
+        - youtube-example/minio
       timeout: 60
   variables:
     worker-id:
@@ -281,28 +212,25 @@ worker:
       env: WORKER_ID
       description: Unique identifier for the worker instance.
       value: worker1
-    mongodb-username:
-      env: MONGODB_USERNAME
-      value: <- connection-target("user") entity get-member("name")
+    mongodb-hostname:
       type: string
-    mongodb-password:
-      env: MONGODB_PASSWORD
-      value: <- secret("mongodb-password")
-      type: string
-    mongodb-connection-string:
-      env: MONGODB_CONNECTION_STRING
-      value: <- connection-target("mongodb") entity-state get-member("connection_srv")
-      type: string
+      value: <- connection-hostname("mongodb")
     mongodb-uri:
       type: string
       env: MONGODB_URI
       description: MongoDB connection URI for database access.
-      value: <- $mongodb-connection-string replace("mongodb+srv://", `mongodb+srv://${mongodb-username}:${mongodb-password}@`)
+      value: <- `mongodb://${global-mongo-init-username}:${global-mongo-init-password}@${mongodb-hostname}:27017/${global-mongo-init-database}?authSource=admin`
+    redis-username:
+      type: string
+      value: <- connection-target("redis") entity-state get-member("username")
+    redis-password:
+      type: string
+      value: <- secret("default-redis-cloud-db-password")
     redis-uri:
       type: string
       env: REDIS_URI
       description: Redis connection URI for job queue and caching.
-      value: <- `redis://` connection-hostname("redis") ":" connection-port("redis") concat-all
+      value: <- `redis://${redis-username}:${redis-password}@` connection-target("redis") entity-state get-member("publicEndpoint") concat-all
     minio-endpoint:
       type: string
       env: MINIO_ENDPOINT
@@ -368,6 +296,38 @@ worker:
       env: GO_ENV
       description: Go environment (development/production).
       value: development
+  permitted-secrets:
+    default-redis-cloud-db-password: true
+
+mongodb:
+  defines: runnable
+  inherits: mongodb/mongodb
+  variables:
+    mongo-image:
+      type: string
+      env: mongo-image
+      description: The tag of the MongoDB Docker image to use.
+      value: latest
+    mongodb-image:
+      type: string
+      env: mongodb-image
+      description: The tag of the MongoDB Docker image to use (alternative variable).
+      value: latest
+    mongo-init-password:
+      type: string
+      env: MONGO_INITDB_ROOT_PASSWORD
+      description: The password for the root MongoDB user.
+      value: <- $global-mongo-init-password default("password")
+    mongo-init-database:
+      type: string
+      env: MONGO_INITDB_DATABASE
+      description: The name of the initial database to create.
+      value: <- $global-mongo-init-database default("mongo")
+    mongo-init-username:
+      type: string
+      env: MONGO_INITDB_ROOT_USERNAME
+      description: The username for the root MongoDB user.
+      value: <- $global-mongo-init-username default("mongo")
 
 minio:
   defines: runnable
@@ -402,12 +362,12 @@ proxy:
   inherits: nginx/node-proxy
   connections:
     backend:
-      target: video-hosting-example/backend
+      target: youtube-example/backend
       service: http
   depends:
     wait-for:
       runnables:
-        - video-hosting-example/backend
+        - youtube-example/backend
       timeout: 60
 
 frontend:
@@ -424,7 +384,7 @@ frontend:
       npm install
       npm run build
       echo '/* /index.html 200' >> build/_redirects
-
+      
     react-app-api-url:
       type: string
       env: REACT_APP_API_URL
@@ -442,20 +402,20 @@ frontend:
       value: development
   connections:
     site:
-      target: video-hosting-example/frontend-site
+      target: youtube-example/frontend-site
       service: data
     backend-api:
-      target: video-hosting-example/proxy
+      target: youtube-example/proxy
       service: nginx
     minio-api:
-      target: video-hosting-example/minio
+      target: youtube-example/minio
       service: api
   depends:
     wait-for:
       runnables:
-        - video-hosting-example/frontend-site
-        - video-hosting-example/proxy
-        - video-hosting-example/minio
+        - youtube-example/frontend-site
+        - youtube-example/proxy
+        - youtube-example/minio
       timeout: 60
 
 stack:
@@ -506,13 +466,12 @@ stack:
       description: MongoDB connection URI for database access.
       value: youtube
   members:
-    - video-hosting-example/backend
-    - video-hosting-example/worker
-    - video-hosting-example/mongodb-project
-    - video-hosting-example/mongodb-user
-    - video-hosting-example/mongodb-database
-    - video-hosting-example/minio
-    - video-hosting-example/proxy
-    - video-hosting-example/frontend-site
-    - video-hosting-example/frontend
-    - video-hosting-example/redis
+    - youtube-example/backend
+    - youtube-example/worker
+    - youtube-example/mongodb
+    - youtube-example/minio
+    - youtube-example/proxy
+    - youtube-example/frontend-site
+    - youtube-example/frontend
+    - youtube-example/redis-subscription
+    - youtube-example/redis
