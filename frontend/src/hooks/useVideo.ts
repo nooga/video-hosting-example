@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { VideoAPI } from "../services/api";
 import {
   Video,
@@ -12,6 +12,8 @@ export const useVideo = (videoId?: string) => {
   const [video, setVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const videoPollIntervalRef = useRef<number | null>(null);
+  const videoInFlightRef = useRef<boolean>(false);
 
   const fetchVideo = useCallback(async () => {
     if (!videoId) return;
@@ -33,6 +35,54 @@ export const useVideo = (videoId?: string) => {
   useEffect(() => {
     fetchVideo();
   }, [fetchVideo]);
+
+  // Poll video details while processing to detect newly available formats
+  useEffect(() => {
+    if (!videoId) return;
+
+    // Ensure single interval
+    if (videoPollIntervalRef.current) {
+      clearInterval(videoPollIntervalRef.current);
+      videoPollIntervalRef.current = null;
+    }
+
+    const id = window.setInterval(async () => {
+      if (videoInFlightRef.current) return;
+      videoInFlightRef.current = true;
+      try {
+        const latest = await VideoAPI.getVideo(videoId);
+        setVideo((prev) => {
+          try {
+            const same = JSON.stringify(prev) === JSON.stringify(latest);
+            return same ? prev : latest;
+          } catch {
+            return latest;
+          }
+        });
+        if (latest.status === "ready" || latest.status === "failed") {
+          if (videoPollIntervalRef.current) {
+            clearInterval(videoPollIntervalRef.current);
+            videoPollIntervalRef.current = null;
+          }
+        }
+      } catch (err) {
+        const apiError = err as ApiError;
+        setError(apiError.error);
+      } finally {
+        videoInFlightRef.current = false;
+      }
+    }, 5000);
+
+    videoPollIntervalRef.current = id;
+
+    return () => {
+      if (videoPollIntervalRef.current) {
+        clearInterval(videoPollIntervalRef.current);
+        videoPollIntervalRef.current = null;
+      }
+      videoInFlightRef.current = false;
+    };
+  }, [videoId]);
 
   return { video, loading, error, refetch: fetchVideo };
 };
@@ -101,54 +151,82 @@ export const useJobs = (videoId?: string) => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
+  const intervalRef = useRef<number | null>(null);
+  const inFlightRef = useRef<boolean>(false);
 
-  const fetchJobs = useCallback(async () => {
-    if (!videoId) return;
-    // Only set loading for the very first fetch or manual refetch, not for background polls
-    const shouldShowLoading = !isPolling && jobs.length === 0;
-    if (shouldShowLoading) setLoading(true);
-    setError(null);
+  const fetchJobs = useCallback(
+    async (showLoading: boolean = false) => {
+      if (!videoId) return;
+      if (showLoading) {
+        setLoading(true);
+        setError(null);
+      }
 
-    try {
-      const response: JobsResponse = await VideoAPI.getJobsForVideo(videoId);
-      setJobs(response.jobs);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.error);
-    } finally {
-      if (shouldShowLoading) setLoading(false);
-    }
-  }, [videoId, isPolling, jobs.length]);
+      try {
+        const response: JobsResponse = await VideoAPI.getJobsForVideo(videoId);
+        setJobs(response.jobs);
+      } catch (err) {
+        const apiError = err as ApiError;
+        setError(apiError.error);
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [videoId]
+  );
 
   useEffect(() => {
-    fetchJobs();
+    fetchJobs(true);
   }, [fetchJobs]);
 
   // Poll for job updates when video is processing
   useEffect(() => {
     if (!videoId) return;
-    setIsPolling(true);
 
-    const interval = setInterval(() => {
-      fetchJobs();
+    // Ensure a single interval exists
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    const id = window.setInterval(async () => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      try {
+        const response: JobsResponse = await VideoAPI.getJobsForVideo(videoId);
+        setJobs((prev) => {
+          try {
+            const same = JSON.stringify(prev) === JSON.stringify(response.jobs);
+            return same ? prev : response.jobs;
+          } catch {
+            return response.jobs;
+          }
+        });
+        const hasProcessing = response.jobs.some(
+          (j) => j.status === "processing" || j.status === "pending"
+        );
+        if (!hasProcessing && intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      } catch (err) {
+        const apiError = err as ApiError;
+        setError(apiError.error);
+      } finally {
+        inFlightRef.current = false;
+      }
     }, 5000); // Poll every 5 seconds
 
-    return () => {
-      clearInterval(interval);
-      setIsPolling(false);
-    };
-  }, [fetchJobs, videoId]);
+    intervalRef.current = id;
 
-  // Stop polling once all jobs are completed or any failed and no processing remains
-  useEffect(() => {
-    const hasProcessing = jobs.some(
-      (j) => j.status === "processing" || j.status === "pending"
-    );
-    if (!hasProcessing && isPolling) {
-      setIsPolling(false);
-    }
-  }, [jobs, isPolling]);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      inFlightRef.current = false;
+    };
+  }, [videoId]);
 
   const getJobProgress = useCallback(() => {
     if (jobs.length === 0) return 0;

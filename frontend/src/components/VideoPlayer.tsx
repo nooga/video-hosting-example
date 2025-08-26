@@ -1,15 +1,15 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { 
-  PlayIcon, 
-  PauseIcon, 
-  SpeakerWaveIcon, 
+import React, { useRef, useEffect, useState } from "react";
+import {
+  PlayIcon,
+  PauseIcon,
+  SpeakerWaveIcon,
   SpeakerXMarkIcon,
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
-  Cog6ToothIcon
-} from '@heroicons/react/24/solid';
-import { Video } from '../types/video';
-import { useVideoPlayer } from '../hooks/useVideo';
+  Cog6ToothIcon,
+} from "@heroicons/react/24/solid";
+import { Video } from "../types/video";
+import { useVideoPlayer } from "../hooks/useVideo";
 
 interface VideoPlayerProps {
   video: Video;
@@ -17,16 +17,18 @@ interface VideoPlayerProps {
   className?: string;
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
-  video, 
-  autoPlay = false, 
-  className = '' 
+const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  video,
+  autoPlay = false,
+  className = "",
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(
+    null
+  );
 
   const {
     currentQuality,
@@ -71,16 +73,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setIsPlaying(false);
     };
 
-    videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
-    videoElement.addEventListener('timeupdate', handleTimeUpdate);
-    videoElement.addEventListener('play', handlePlay);
-    videoElement.addEventListener('pause', handlePause);
+    videoElement.addEventListener("loadedmetadata", handleLoadedMetadata);
+    videoElement.addEventListener("timeupdate", handleTimeUpdate);
+    videoElement.addEventListener("play", handlePlay);
+    videoElement.addEventListener("pause", handlePause);
 
     return () => {
-      videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      videoElement.removeEventListener('timeupdate', handleTimeUpdate);
-      videoElement.removeEventListener('play', handlePlay);
-      videoElement.removeEventListener('pause', handlePause);
+      videoElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      videoElement.removeEventListener("timeupdate", handleTimeUpdate);
+      videoElement.removeEventListener("play", handlePlay);
+      videoElement.removeEventListener("pause", handlePause);
     };
   }, [setDuration, setCurrentTime, setIsPlaying]);
 
@@ -127,7 +129,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       clearTimeout(controlsTimeout);
     }
     setShowControls(true);
-    
+
     if (isPlaying) {
       const timeout = setTimeout(() => {
         setShowControls(false);
@@ -157,7 +159,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const newTime = (clickX / rect.width) * duration;
-    
+
     videoElement.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -165,7 +167,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const qualities = getAvailableQualities();
@@ -193,7 +195,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {/* Controls Overlay */}
       <div
         className={`video-controls transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0'
+          showControls ? "opacity-100" : "opacity-0"
         }`}
       >
         {/* Progress Bar */}
@@ -204,7 +206,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           >
             <div
               className="h-full bg-red-500 rounded"
-              style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+              style={{
+                width: `${duration ? (currentTime / duration) * 100 : 0}%`,
+              }}
             />
           </div>
         </div>
@@ -257,18 +261,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             {/* Quality Selector */}
-            <div className="relative">
+            <div className="relative flex items-center">
               <button
                 onClick={() => setShowQualityMenu(!showQualityMenu)}
-                className="text-white hover:text-gray-300 transition-colors"
+                aria-label="Change quality"
+                className="text-white hover:text-gray-300 transition-colors p-2 rounded focus:outline-none focus:ring-2 focus:ring-white/40"
               >
                 <Cog6ToothIcon className="h-5 w-5" />
               </button>
-              
+
               {showQualityMenu && (
-                <div className="absolute bottom-8 right-0 bg-black/90 rounded-md py-2 min-w-24">
+                <div className="absolute bottom-10 right-0 bg-black/90 rounded-md py-2 min-w-24 shadow-lg ring-1 ring-white/10 z-30">
                   {qualities.map((quality) => (
                     <button
                       key={quality}
@@ -277,7 +282,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                         setShowQualityMenu(false);
                       }}
                       className={`quality-button block w-full text-left px-3 py-1 ${
-                        quality === currentQuality ? 'active' : ''
+                        quality === currentQuality ? "active" : ""
                       }`}
                     >
                       {quality}
@@ -303,16 +308,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </div>
 
       {/* Loading/Error States */}
-      {video.status === 'processing' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-          <div className="text-center text-white">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-            <p>Video is still processing...</p>
+      {video.status === "processing" &&
+        (!video.formats || video.formats.length === 0) && (
+          <div className="absolute inset-0 z-20 grid place-items-center bg-black/50 p-6">
+            <div className="text-center text-white">
+              <div className="relative h-12 w-12 mx-auto mb-4">
+                <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-white border-t-transparent animate-spin"></div>
+              </div>
+              <h3 className="text-lg font-medium mb-1">Processing Video…</h3>
+              <p className="text-sm text-gray-200 loading-pulse">
+                Your video is being transcoded and will be ready shortly.
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {video.status === 'failed' && (
+      {video.status === "failed" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <div className="text-center text-white">
             <p>Failed to process video</p>
@@ -323,4 +335,4 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   );
 };
 
-export default VideoPlayer; 
+export default VideoPlayer;
