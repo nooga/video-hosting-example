@@ -219,6 +219,49 @@ export class VideoAPI {
     });
     return response.data;
   }
+
+  // Comments API
+  static async listComments(
+    videoId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{
+    comments: Array<{
+      id: string;
+      video_id: string;
+      author_id: string;
+      content: string;
+      status: string;
+      reason?: string;
+      created_at: string;
+      updated_at: string;
+    }>;
+    page: number;
+    limit: number;
+  }> {
+    const response = await api.get(`/api/v1/videos/${videoId}/comments`, {
+      params: { page, limit },
+    });
+    return response.data;
+  }
+
+  static async createComment(
+    videoId: string,
+    content: string
+  ): Promise<{
+    id: string;
+    video_id: string;
+    author_id: string;
+    content: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }> {
+    const response = await api.post(`/api/v1/videos/${videoId}/comments`, {
+      content,
+    });
+    return response.data;
+  }
 }
 
 // Export default instance

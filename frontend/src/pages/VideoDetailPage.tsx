@@ -188,7 +188,7 @@ const VideoDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <Comments />
+            <Comments videoId={video.id} />
           </div>
 
           {/* Sidebar: processing status or suggestions */}

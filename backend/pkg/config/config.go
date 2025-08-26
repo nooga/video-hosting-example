@@ -15,6 +15,7 @@ type Config struct {
 	FrontendURL string
 	MinIO       MinIOConfig
 	Auth0       Auth0Config
+	Moderation  ModerationConfig
 }
 
 type MinIOConfig struct {
@@ -28,6 +29,13 @@ type MinIOConfig struct {
 type Auth0Config struct {
 	Domain   string
 	Audience string
+}
+
+type ModerationConfig struct {
+	Enabled  bool
+	APIURL   string
+	APIToken string
+	Model    string
 }
 
 func Load() *Config {
@@ -52,6 +60,12 @@ func Load() *Config {
 		Auth0: Auth0Config{
 			Domain:   getEnv("AUTH0_DOMAIN", ""),
 			Audience: getEnv("AUTH0_AUDIENCE", ""),
+		},
+		Moderation: ModerationConfig{
+			Enabled:  getEnv("MODERATION_ENABLED", "false") == "true",
+			APIURL:   getEnv("MODERATION_API_URL", ""),
+			APIToken: getEnv("MODERATION_API_TOKEN", ""),
+			Model:    getEnv("MODERATION_MODEL", ""),
 		},
 	}
 }

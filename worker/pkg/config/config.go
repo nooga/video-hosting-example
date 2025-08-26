@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	MongoURI string
-	RedisURI string
-	MinIO    MinIOConfig
+	MongoURI   string
+	RedisURI   string
+	MinIO      MinIOConfig
+	Moderation ModerationConfig
 }
 
 type MinIOConfig struct {
@@ -19,6 +20,12 @@ type MinIOConfig struct {
 	SecretKey  string
 	UseSSL     bool
 	BucketName string
+}
+
+type ModerationConfig struct {
+	APIURL   string
+	APIToken string
+	Model    string
 }
 
 func Load() *Config {
@@ -36,6 +43,11 @@ func Load() *Config {
 			SecretKey:  getEnv("MINIO_SECRET_KEY", "minioadmin"),
 			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 			BucketName: getEnv("MINIO_BUCKET_NAME", "videos"),
+		},
+		Moderation: ModerationConfig{
+			APIURL:   getEnv("MODERATION_API_URL", ""),
+			APIToken: getEnv("MODERATION_API_TOKEN", ""),
+			Model:    getEnv("MODERATION_MODEL", ""),
 		},
 	}
 }

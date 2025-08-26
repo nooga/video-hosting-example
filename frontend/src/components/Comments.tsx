@@ -1,35 +1,68 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
+import { VideoAPI } from "../services/api";
 
 interface CommentItem {
   id: string;
   author: string;
   content: string;
   createdAt: string;
+  status?: string;
 }
 
 interface CommentsProps {
   initialComments?: CommentItem[];
+  videoId?: string;
 }
 
-const Comments: React.FC<CommentsProps> = ({ initialComments = [] }) => {
+const Comments: React.FC<CommentsProps> = ({
+  initialComments = [],
+  videoId,
+}) => {
   const [comments, setComments] = useState<CommentItem[]>(initialComments);
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const { isAuthenticated, loginWithRedirect, user } = useAuth0();
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  useEffect(() => {
+    const load = async () => {
+      if (!videoId) return;
+      try {
+        const res = await VideoAPI.listComments(videoId, 1, 50);
+        setComments(
+          res.comments.map((c) => ({
+            id: c.id,
+            author: c.author_id,
+            content: c.content,
+            createdAt: c.created_at,
+            status: c.status,
+          }))
+        );
+      } catch (e) {
+        // ignore for now
+      }
+    };
+    load();
+  }, [videoId]);
+
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!text.trim()) return;
-    // For now, locally append. Backend integration later.
-    const newComment: CommentItem = {
-      id: Math.random().toString(36).slice(2),
-      author: user?.name || user?.email || "you",
-      content: text.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    setComments([newComment, ...comments]);
-    setText("");
+    if (!videoId) return;
+    try {
+      const created = await VideoAPI.createComment(videoId, text.trim());
+      const newComment: CommentItem = {
+        id: created.id,
+        author: user?.name || user?.email || created.author_id,
+        content: created.content,
+        createdAt: created.created_at,
+        status: created.status,
+      };
+      setComments([newComment, ...comments]);
+      setText("");
+    } catch (err) {
+      // ignore for now or show toast
+    }
   };
 
   return (
@@ -113,6 +146,11 @@ const Comments: React.FC<CommentsProps> = ({ initialComments = [] }) => {
                 <span className="font-medium text-gray-900">{c.author}</span>
                 <span className="mx-1">•</span>
                 <span>{new Date(c.createdAt).toLocaleString()}</span>
+                {c.status === "pending" && (
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">
+                    Pending moderation
+                  </span>
+                )}
               </div>
               <p className="text-gray-800 whitespace-pre-wrap">{c.content}</p>
             </div>

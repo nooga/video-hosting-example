@@ -65,8 +65,9 @@ func main() {
 	}
 	defer mongoClient.Close()
 
-	// Initialize video processor
+	// Initialize processors
 	videoProcessor := processor.NewVideoProcessor(minioClient, mongoClient, log)
+	moderationProcessor := processor.NewModerationProcessor(mongoClient, log, cfg.Moderation)
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -87,7 +88,7 @@ func main() {
 				return
 			default:
 				// Process jobs
-				if err := processJobs(ctx, redisClient, videoProcessor, workerID, log); err != nil {
+				if err := processJobs(ctx, redisClient, videoProcessor, moderationProcessor, workerID, log); err != nil {
 					log.Error("Error processing jobs", zap.Error(err))
 					time.Sleep(5 * time.Second) // Back off on error
 				}
@@ -105,7 +106,7 @@ func main() {
 	log.Info("Worker stopped")
 }
 
-func processJobs(ctx context.Context, redisClient *queue.RedisClient, processor *processor.VideoProcessor, workerID string, log *zap.Logger) error {
+func processJobs(ctx context.Context, redisClient *queue.RedisClient, videoProcessor *processor.VideoProcessor, moderationProcessor *processor.ModerationProcessor, workerID string, log *zap.Logger) error {
 	// Try to get a job from the queue (blocking for up to 5 seconds)
 	jobData, err := redisClient.Dequeue("video_jobs", 5*time.Second)
 	if err != nil {
@@ -133,7 +134,7 @@ func processJobs(ctx context.Context, redisClient *queue.RedisClient, processor 
 		zap.String("worker_id", workerID))
 
 	// Start job
-	if err := processor.StartJob(ctx, job.ID, workerID); err != nil {
+	if err := videoProcessor.StartJob(ctx, job.ID, workerID); err != nil {
 		log.Error("Failed to start job", zap.Error(err))
 		return err
 	}
@@ -143,9 +144,15 @@ func processJobs(ctx context.Context, redisClient *queue.RedisClient, processor 
 	switch job.Type {
 	case "transcode":
 		quality := job.Payload["quality"].(string)
-		processErr = processor.TranscodeVideo(ctx, job.VideoID, job.ID, quality)
+		processErr = videoProcessor.TranscodeVideo(ctx, job.VideoID, job.ID, quality)
 	case "thumbnail":
-		processErr = processor.GenerateThumbnail(ctx, job.VideoID, job.ID)
+		processErr = videoProcessor.GenerateThumbnail(ctx, job.VideoID, job.ID)
+	case "comment_moderation":
+		if commentID, ok := job.Payload["comment_id"].(string); ok {
+			processErr = moderationProcessor.ModerateComment(ctx, commentID)
+		} else {
+			processErr = fmt.Errorf("missing comment_id in payload")
+		}
 	default:
 		processErr = fmt.Errorf("unknown job type: %s", job.Type)
 	}
@@ -154,23 +161,10 @@ func processJobs(ctx context.Context, redisClient *queue.RedisClient, processor 
 	if processErr != nil {
 		log.Error("Job processing failed",
 			zap.String("job_id", job.ID),
+			zap.String("type", job.Type),
 			zap.Error(processErr))
-
-		if err := processor.FailJob(ctx, job.ID, processErr.Error()); err != nil {
-			log.Error("Failed to mark job as failed", zap.Error(err))
-		}
-		return processErr
+		return videoProcessor.FailJob(ctx, job.ID, processErr.Error())
 	}
 
-	// Complete job
-	if err := processor.CompleteJob(ctx, job.ID); err != nil {
-		log.Error("Failed to mark job as completed", zap.Error(err))
-		return err
-	}
-
-	log.Info("Job completed successfully",
-		zap.String("job_id", job.ID),
-		zap.String("video_id", job.VideoID))
-
-	return nil
+	return videoProcessor.CompleteJob(ctx, job.ID)
 }

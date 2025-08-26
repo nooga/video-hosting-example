@@ -8,6 +8,13 @@ services:
     restart: unless-stopped
     ports:
       - "27017:27017"
+    command:
+      - "--quiet"
+      - "--logpath"
+      - "/proc/self/fd/1"
+      - "--logappend"
+      - "--setParameter"
+      - "logComponentVerbosity={verbosity:0, network:{verbosity:0}}"
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: password

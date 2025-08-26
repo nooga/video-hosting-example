@@ -11,10 +11,11 @@ import (
 )
 
 type MongoClient struct {
-	client           *mongo.Client
-	database         *mongo.Database
-	jobsCollection   *mongo.Collection
-	videosCollection *mongo.Collection
+	client             *mongo.Client
+	database           *mongo.Database
+	jobsCollection     *mongo.Collection
+	videosCollection   *mongo.Collection
+	commentsCollection *mongo.Collection
 }
 
 func NewMongoClient(uri string) (*MongoClient, error) {
@@ -34,10 +35,11 @@ func NewMongoClient(uri string) (*MongoClient, error) {
 	database := client.Database("youtube")
 
 	return &MongoClient{
-		client:           client,
-		database:         database,
-		jobsCollection:   database.Collection("jobs"),
-		videosCollection: database.Collection("videos"),
+		client:             client,
+		database:           database,
+		jobsCollection:     database.Collection("jobs"),
+		videosCollection:   database.Collection("videos"),
+		commentsCollection: database.Collection("comments"),
 	}, nil
 }
 
@@ -194,4 +196,21 @@ func (m *MongoClient) AreAllJobsCompleted(ctx context.Context, videoID string) (
 
 	// All jobs are completed if counts match and there's at least one job
 	return totalJobs > 0 && totalJobs == completedJobs, nil
+}
+
+// UpdateCommentStatus updates moderation status for a comment by string ID
+func (m *MongoClient) UpdateCommentStatus(ctx context.Context, commentID, status, reason string) error {
+	objID, err := primitive.ObjectIDFromHex(commentID)
+	if err != nil {
+		return err
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"status":     status,
+			"reason":     reason,
+			"updated_at": time.Now(),
+		},
+	}
+	_, err = m.commentsCollection.UpdateOne(ctx, bson.M{"_id": objID}, update)
+	return err
 }

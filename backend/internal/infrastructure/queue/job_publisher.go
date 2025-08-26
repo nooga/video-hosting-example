@@ -75,3 +75,22 @@ func (jp *JobPublisher) PublishThumbnailJob(ctx context.Context, videoID primiti
 
 	return jp.redisClient.Enqueue("video_jobs", jobData)
 }
+
+// PublishCommentModeration enqueues a comment moderation job
+func (jp *JobPublisher) PublishCommentModeration(ctx context.Context, commentID primitive.ObjectID, videoID primitive.ObjectID) error {
+	jobMessage := JobMessage{
+		ID:      commentID.Hex(),
+		VideoID: videoID.Hex(),
+		Type:    "comment_moderation",
+		Payload: map[string]interface{}{
+			"comment_id": commentID.Hex(),
+		},
+	}
+
+	jobData, err := json.Marshal(jobMessage)
+	if err != nil {
+		return err
+	}
+
+	return jp.redisClient.Enqueue("video_jobs", jobData)
+}
