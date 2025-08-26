@@ -14,6 +14,7 @@ type Config struct {
 	RedisURI    string
 	FrontendURL string
 	MinIO       MinIOConfig
+	Auth0       Auth0Config
 }
 
 type MinIOConfig struct {
@@ -22,6 +23,11 @@ type MinIOConfig struct {
 	SecretKey  string
 	UseSSL     bool
 	BucketName string
+}
+
+type Auth0Config struct {
+	Domain   string
+	Audience string
 }
 
 func Load() *Config {
@@ -42,6 +48,10 @@ func Load() *Config {
 			SecretKey:  getEnv("MINIO_SECRET_KEY", "minioadmin"),
 			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 			BucketName: getEnv("MINIO_BUCKET_NAME", "videos"),
+		},
+		Auth0: Auth0Config{
+			Domain:   getEnv("AUTH0_DOMAIN", ""),
+			Audience: getEnv("AUTH0_AUDIENCE", ""),
 		},
 	}
 }

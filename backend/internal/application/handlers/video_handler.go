@@ -11,6 +11,7 @@ import (
 	"youtube-backend/internal/domain/entities"
 	"youtube-backend/internal/domain/services"
 	"youtube-backend/internal/infrastructure/storage"
+	mw "youtube-backend/internal/interfaces/middleware"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -81,6 +82,9 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 	title := c.PostForm("title")
 	description := c.PostForm("description")
 	uploadedBy := c.PostForm("uploaded_by")
+	if sub := mw.GetAuthSubject(c); sub != "" {
+		uploadedBy = sub
+	}
 
 	if title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Title is required"})

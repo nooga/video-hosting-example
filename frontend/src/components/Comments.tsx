@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 
 interface CommentItem {
   id: string;
@@ -15,6 +16,7 @@ const Comments: React.FC<CommentsProps> = ({ initialComments = [] }) => {
   const [comments, setComments] = useState<CommentItem[]>(initialComments);
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
+  const { isAuthenticated, loginWithRedirect, user } = useAuth0();
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -22,7 +24,7 @@ const Comments: React.FC<CommentsProps> = ({ initialComments = [] }) => {
     // For now, locally append. Backend integration later.
     const newComment: CommentItem = {
       id: Math.random().toString(36).slice(2),
-      author: "you",
+      author: user?.name || user?.email || "you",
       content: text.trim(),
       createdAt: new Date().toISOString(),
     };
@@ -53,7 +55,11 @@ const Comments: React.FC<CommentsProps> = ({ initialComments = [] }) => {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSubmit();
+                  if (isAuthenticated) {
+                    handleSubmit();
+                  } else {
+                    loginWithRedirect();
+                  }
                 }
               }}
               rows={1}
@@ -62,23 +68,35 @@ const Comments: React.FC<CommentsProps> = ({ initialComments = [] }) => {
             />
             {(focused || text.trim()) && (
               <div className="mt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setText("");
-                    setFocused(false);
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={!text.trim()}
-                >
-                  Comment
-                </button>
+                {!isAuthenticated ? (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => loginWithRedirect()}
+                  >
+                    Sign in to comment
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        setText("");
+                        setFocused(false);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={!text.trim()}
+                    >
+                      Comment
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

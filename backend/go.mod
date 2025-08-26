@@ -5,9 +5,11 @@ go 1.23.0
 toolchain go1.23.2
 
 require (
+	github.com/MicahParks/keyfunc v1.6.0
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/joho/godotenv v1.4.0
 	github.com/minio/minio-go/v7 v7.0.63
 	go.mongodb.org/mongo-driver v1.12.1

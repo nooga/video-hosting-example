@@ -5,11 +5,13 @@ import VideoCard from "../components/VideoCard";
 import UploadZone from "../components/UploadZone";
 import { Video } from "../types/video";
 import Logo from "../components/Logo";
+import { useAuth0 } from "@auth0/auth0-react";
 
 const HomePage: React.FC = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { videos, loading, error, hasMore, loadMore, refresh } = useVideoList();
+  const { isAuthenticated, loginWithRedirect, logout, user } = useAuth0();
 
   const handleVideoClick = (video: Video) => {
     // Navigate to video detail page
@@ -53,23 +55,55 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Upload Button */}
-            <button
-              onClick={() => setShowUpload(!showUpload)}
-              className="btn-primary"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Upload Video
-            </button>
+            {/* Auth and Upload Buttons */}
+            <div className="flex items-center gap-3">
+              {isAuthenticated ? (
+                <>
+                  <button
+                    onClick={() => setShowUpload(!showUpload)}
+                    className="btn-primary"
+                  >
+                    <PlusIcon className="h-5 w-5 mr-2" />
+                    Upload Video
+                  </button>
+                  <button
+                    onClick={() =>
+                      logout({
+                        logoutParams: { returnTo: window.location.origin },
+                      })
+                    }
+                    className="btn-secondary"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => loginWithRedirect()}
+                  className="btn-primary"
+                >
+                  Sign in
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Upload Section */}
-        {showUpload && (
+        {showUpload && isAuthenticated && (
           <div className="mb-8">
             <UploadZone onUploadComplete={handleUploadComplete} />
+          </div>
+        )}
+        {showUpload && !isAuthenticated && (
+          <div className="mb-8">
+            <div className="card p-6">
+              <p className="text-sm text-gray-700">
+                Please sign in to upload videos.
+              </p>
+            </div>
           </div>
         )}
 

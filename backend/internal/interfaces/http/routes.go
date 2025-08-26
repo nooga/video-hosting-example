@@ -8,6 +8,7 @@ import (
 	"youtube-backend/internal/infrastructure/repositories"
 	"youtube-backend/internal/infrastructure/storage"
 	"youtube-backend/internal/interfaces/middleware"
+	"youtube-backend/pkg/config"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -17,6 +18,9 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 	// Add middleware
 	router.Use(middleware.CORS())
 	router.Use(middleware.RequestLogger(logger))
+
+	// Load config for auth
+	cfg := config.Load()
 
 	// Initialize repositories
 	videoRepo := repositories.NewVideoRepository(db)
@@ -48,7 +52,12 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 		// Video routes
 		videos := v1.Group("/videos")
 		{
-			videos.POST("/upload", videoHandler.UploadVideo)
+			// Protect upload with Auth0 middleware when configured
+			if cfg.Auth0.Domain != "" && cfg.Auth0.Audience != "" {
+				videos.POST("/upload", middleware.Auth0Middleware(cfg.Auth0.Domain, cfg.Auth0.Audience), videoHandler.UploadVideo)
+			} else {
+				videos.POST("/upload", videoHandler.UploadVideo)
+			}
 			videos.GET("", videoHandler.GetVideos)
 			videos.GET("/:id", videoHandler.GetVideo)
 			videos.GET("/:id/stream", videoHandler.StreamVideo)

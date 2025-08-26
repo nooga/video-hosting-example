@@ -61,11 +61,7 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    // Token is dynamically attached by setAuthTokenGetter if configured
     return config;
   },
   (error) => Promise.reject(error)
@@ -84,6 +80,28 @@ api.interceptors.response.use(
 );
 
 export class VideoAPI {
+  // Allow integrating with Auth0 for token retrieval
+  private static getToken: (() => Promise<string | null>) | null = null;
+
+  static setAuthTokenGetter(getter: () => Promise<string | null>) {
+    this.getToken = getter;
+    // Attach a request interceptor once to fetch token before each request
+    api.interceptors.request.use(async (config) => {
+      if (this.getToken) {
+        try {
+          const token = await this.getToken();
+          if (token) {
+            config.headers = config.headers || {};
+            (config.headers as any).Authorization = `Bearer ${token}`;
+          }
+        } catch (_) {
+          // ignore token fetch errors
+        }
+      }
+      return config;
+    });
+  }
+
   // Health check
   static async checkHealth(): Promise<{ status: string; service: string }> {
     const response = await api.get("/health");
