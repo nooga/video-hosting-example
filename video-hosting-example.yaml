@@ -24,7 +24,7 @@ auth0:
     app-domain:
       type: string
       description: Domain of the application using Auth0.
-      value: <- connection-target("frontend-site") entity-state get-member("url")
+      value: <- connection-target("app") entity-state get-member("url")
   services:
     data:
       protocol: custom
