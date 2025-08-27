@@ -25,18 +25,22 @@ type CommentHandler struct {
 }
 
 type CreateCommentRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content      string `json:"content" binding:"required"`
+	AuthorName   string `json:"author_name"`
+	AuthorAvatar string `json:"author_avatar"`
 }
 
 type CommentResponse struct {
-	ID        string                 `json:"id"`
-	VideoID   string                 `json:"video_id"`
-	AuthorID  string                 `json:"author_id"`
-	Content   string                 `json:"content"`
-	Status    entities.CommentStatus `json:"status"`
-	Reason    string                 `json:"reason,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at"`
+	ID           string                 `json:"id"`
+	VideoID      string                 `json:"video_id"`
+	AuthorID     string                 `json:"author_id"`
+	AuthorName   string                 `json:"author_name"`
+	AuthorAvatar string                 `json:"author_avatar"`
+	Content      string                 `json:"content"`
+	Status       entities.CommentStatus `json:"status"`
+	Reason       string                 `json:"reason,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
 }
 
 type CommentListResponse struct {
@@ -66,17 +70,33 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		return
 	}
 
-	authorID := mw.GetAuthSubject(c)
-	if authorID == "" {
+	authSub := mw.GetAuthSubject(c)
+	if authSub == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	comment, err := h.service.CreatePending(ctx, objID, authorID, req.Content)
+	authorOID := mw.GetAuthUserID(c)
+	if authorOID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	authorName := mw.GetAuthName(c)
+	authorAvatar := mw.GetAuthPicture(c)
+	if authorName == "" {
+		authorName = req.AuthorName
+	}
+	if authorAvatar == "" {
+		authorAvatar = req.AuthorAvatar
+	}
+	comment, err := h.service.CreatePending(ctx, objID, authorOID, authSub, authorName, authorAvatar, req.Content)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// Set denormalized subject for filtering pending on list
+	comment.AuthorSubject = authSub
 
 	// If moderation configured, enqueue moderation job; otherwise publish immediately
 	if h.moderation.Enabled && h.moderation.APIURL != "" && h.moderation.APIToken != "" {
@@ -116,12 +136,12 @@ func (h *CommentHandler) List(c *gin.Context) {
 		limit = 20
 	}
 	includePendingForAuthor := false
-	authorID := mw.GetAuthSubject(c)
-	if authorID != "" {
+	authorSub := mw.GetAuthSubject(c)
+	if authorSub != "" {
 		includePendingForAuthor = true
 	}
 
-	comments, err := h.service.ListForVideo(ctx, objID, authorID, includePendingForAuthor, limit, (page-1)*limit)
+	comments, err := h.service.ListForVideo(ctx, objID, authorSub, includePendingForAuthor, limit, (page-1)*limit)
 	if err != nil {
 		h.logger.Error("failed to list comments", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
@@ -136,13 +156,15 @@ func (h *CommentHandler) List(c *gin.Context) {
 
 func (h *CommentHandler) toResponse(cmt *entities.Comment) CommentResponse {
 	return CommentResponse{
-		ID:        cmt.ID.Hex(),
-		VideoID:   cmt.VideoID.Hex(),
-		AuthorID:  cmt.AuthorID,
-		Content:   cmt.Content,
-		Status:    cmt.Status,
-		Reason:    cmt.Reason,
-		CreatedAt: cmt.CreatedAt,
-		UpdatedAt: cmt.UpdatedAt,
+		ID:           cmt.ID.Hex(),
+		VideoID:      cmt.VideoID.Hex(),
+		AuthorID:     cmt.AuthorID.Hex(),
+		AuthorName:   cmt.AuthorName,
+		AuthorAvatar: cmt.AuthorAvatar,
+		Content:      cmt.Content,
+		Status:       cmt.Status,
+		Reason:       cmt.Reason,
+		CreatedAt:    cmt.CreatedAt,
+		UpdatedAt:    cmt.UpdatedAt,
 	}
 }

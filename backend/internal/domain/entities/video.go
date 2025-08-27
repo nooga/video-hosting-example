@@ -23,9 +23,12 @@ type VideoFormat struct {
 
 type Video struct {
 	ID               primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UploaderUserID   primitive.ObjectID `json:"uploader_user_id" bson:"uploader_user_id"`
 	Title            string             `json:"title" bson:"title"`
 	Description      string             `json:"description" bson:"description"`
 	UploadedBy       string             `json:"uploaded_by" bson:"uploaded_by"`
+	UploaderName     string             `json:"uploader_name" bson:"uploader_name"`
+	UploaderAvatar   string             `json:"uploader_avatar" bson:"uploader_avatar"`
 	OriginalFilename string             `json:"original_filename" bson:"original_filename"`
 	Duration         float64            `json:"duration" bson:"duration"` // in seconds
 	Size             int64              `json:"size" bson:"size"`         // in bytes
@@ -37,13 +40,16 @@ type Video struct {
 }
 
 // NewVideo creates a new video entity
-func NewVideo(title, description, uploadedBy, originalFilename string, size int64) *Video {
+func NewVideo(uploaderUserID primitive.ObjectID, title, description, uploadedBy, uploaderName, uploaderAvatar, originalFilename string, size int64) *Video {
 	now := time.Now()
 	return &Video{
 		ID:               primitive.NewObjectID(),
+		UploaderUserID:   uploaderUserID,
 		Title:            title,
 		Description:      description,
 		UploadedBy:       uploadedBy,
+		UploaderName:     uploaderName,
+		UploaderAvatar:   uploaderAvatar,
 		OriginalFilename: originalFilename,
 		Size:             size,
 		Status:           VideoStatusUploaded,

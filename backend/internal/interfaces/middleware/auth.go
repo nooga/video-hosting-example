@@ -109,3 +109,41 @@ func GetAuthSubject(c *gin.Context) string {
 	}
 	return ""
 }
+
+// GetAuthName extracts a displayable name from claims
+func GetAuthName(c *gin.Context) string {
+	claimsAny, exists := c.Get("auth_claims")
+	if !exists {
+		return ""
+	}
+	claims, ok := claimsAny.(jwt.MapClaims)
+	if !ok {
+		return ""
+	}
+	if name, ok := claims["name"].(string); ok && name != "" {
+		return name
+	}
+	if nickname, ok := claims["nickname"].(string); ok && nickname != "" {
+		return nickname
+	}
+	if email, ok := claims["email"].(string); ok && email != "" {
+		return email
+	}
+	return ""
+}
+
+// GetAuthPicture extracts the avatar URL from claims if present
+func GetAuthPicture(c *gin.Context) string {
+	claimsAny, exists := c.Get("auth_claims")
+	if !exists {
+		return ""
+	}
+	claims, ok := claimsAny.(jwt.MapClaims)
+	if !ok {
+		return ""
+	}
+	if pic, ok := claims["picture"].(string); ok {
+		return pic
+	}
+	return ""
+}

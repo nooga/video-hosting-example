@@ -1,8 +1,46 @@
 namespace: video-hosting-example
 
+auth0:
+  defines: auth0/application
+  domain: <- secret("default-auth0-management-api-url")
+  app-name: "Auth0 Integration App"
+  description: "Auth0 Integration App"
+  app-type: "spa"
+  callback-url: <- $app-domain "/callback" concat-all
+  allowed-logout-urls:
+    - <- $app-domain concat-all
+  web-origins:
+    - <- $app-domain
+  allowed-origins:
+    - <- $app-domain
+  management-client-id-secret: default-auth0-management-client-id
+  management-client-token-secret: default-auth0-management-client-secret
+  management-api: <- "https://" secret("default-auth0-management-api-url") concat-all
+  permitted-secrets:
+    default-auth0-management-client-id: true
+    default-auth0-management-client-secret: true
+    default-auth0-management-api-url: true
+  variables:
+    app-domain:
+      type: string
+      description: Domain of the application using Auth0.
+      value: <- connection-target("frontend-site") entity-state get-member("url")
+  services:
+    data:
+      protocol: custom
+  connections:
+    app:
+      runnable: video-hosting-example/frontend-site
+      service: data
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/frontend-site
+      timeout: 60
+
 frontend-site:
   defines: netlify/site
-  name: monk-video-hosting-example-dlu
+  name: monk-video-hosting-example-ftyb1
   force_ssl: false
   secret_ref: default-netlify-pat
   permitted-secrets:
@@ -12,113 +50,79 @@ frontend-site:
       protocol: custom
 
 redis:
-  defines: runnable
-  inherits: redis/redis
-  variables:
-    redis_empty_password:
-      type: string
-      env: ALLOW_EMPTY_PASSWORD
-      description: Allows Redis to start with an empty password.
-      value: yes
-    redis_port:
-      type: int
-      env: REDIS_PORT
-      description: Port on which Redis listens.
-      value: 6379
-    redis_instance_name:
-      type: string
-      env: REDIS_INSTANCE_NAME
-      description: Name of the Redis instance.
-      value: master
-    redis_disable_commands:
-      type: string
-      env: REDIS_DISABLE_COMMANDS
-      description: Commands to disable in Redis.
-      value: "FLUSHDB,FLUSHALL,CONFIG"
-    redis_io_threads_do_reads:
-      type: string
-      env: REDIS_IO_THREADS_DO_READS
-      description: Enable Redis IO threads for reads.
-      value: yes
-    redis_io_thread:
-      type: string
-      env: REDIS_IO_THREADS
-      description: Number of Redis IO threads.
-      value: 1
-
-mongodb-project:
-  defines: mongodb-atlas/project
-  name: video-hosting-example
-  organization: <- secret("default-mongodb-org")
-  secret_ref: default-mongodb-token
+  defines: digitalocean-database/database
+  name: my-redis-cache
+  engine: valkey
+  num_nodes: 1
+  region: fra1
+  size: db-s-1vcpu-2gb
+  tags:
+    - environment:production
+    - application:cache
+  db_config:
+    redis_maxmemory_policy: "allkeys-lru"
   services:
-    data:
+    redis-svc:
       protocol: custom
-  permitted-secrets:
-    default-mongodb-token: true
-    default-mongodb-org: true
-
-mongodb-user:
-  defines: mongodb-atlas/user
-  name: video-hosting-example-user
-  role: atlasAdmin
-  secret_ref: default-mongodb-token
-  password_secret_ref: mongodb-password
-  project_id: <- connection-target("project") entity-state get-member("id")
-  services:
-    data:
-      protocol: custom
-  depends:
-    wait-for:
-      runnables:
-        - video-hosting-example/mongodb-project
-      timeout: 60
-  connections:
-    project:
-      target: video-hosting-example/mongodb-project
-      service: data
-  permitted-secrets:
-    default-mongodb-token: true
-    default-mongodb-org: true
-    mongodb-password: true
-
-mongodb-database:
-  defines: mongodb-atlas/cluster
-  name: video-hosting-example-cluster
-  project_id: <- connection-target("project") entity-state get-member("id")
-  provider: AWS
-  region: US_EAST_1
-  instance_size: M0
-  node_count: 3
-  secret_ref: default-mongodb-token
-  allow_ips:
-    - 0.0.0.0/0
-  services:
-    data:
-      protocol: custom
-  depends:
-    wait-for:
-      runnables:
-        - video-hosting-example/mongodb-project
-      timeout: 60
-  connections:
-    project:
-      target: video-hosting-example/mongodb-project
-      service: data
   checks:
     readiness:
-      period: 10
+      period: 30
       initialDelay: 2
       attempts: 30
+
+spaces-keys:
+  defines: digitalocean-spaces/spaces-keys
   permitted-secrets:
-    default-mongodb-token: true
-    default-mongodb-org: true
+    do-spaces-access-key: true
+    do-spaces-secret-key: true
+  services:
+    data:
+      protocol: custom
+
+spaces:
+  defines: digitalocean-spaces/spaces-bucket
+  bucket_name: monk-youtube-example-spaces
+  region: nyc3
+  versioning: false
+  public_read_access: true
+  public_write_access: false
+  services:
+    bucket:
+      protocol: custom
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/spaces-keys
+  permitted-secrets:
+    do-spaces-access-key: true
+    do-spaces-secret-key: true
+
+mongodb-database:
+  defines: digitalocean-database/database
+  name: video-hosting-example
+  engine: mongodb
+  version: "7.0"
+  num_nodes: 1
+  region: lon1
+  size: db-s-4vcpu-8gb
+  tags:
+    - environment:production
+    - application:document-store
+  services:
+    data:
+      protocol: custom
+  checks:
+    readiness:
+      period: 30
+      initialDelay: 2
+      attempts: 30
 
 backend:
   defines: runnable
   permitted-secrets:
     default-redis-cloud-db-password: true
     mongodb-password: true
+    default-auth0-management-api-url: true
   metadata:
     name: backend
     description: "Go-based backend API for a YouTube-like video platform. Handles user, video, and job management, connects to MongoDB, Redis, and MinIO for data, queue, and storage. Exposes HTTP API for frontend and worker interaction."
@@ -148,46 +152,33 @@ backend:
     frontend:
       target: video-hosting-example/frontend-site
       service: data
-    user:
-      target: video-hosting-example/mongodb-user
-      service: data
   depends:
     wait-for:
       runnables:
-        - video-hosting-example/mongodb-project
-        - video-hosting-example/mongodb-user
         - video-hosting-example/mongodb-database
         - video-hosting-example/redis
         - video-hosting-example/minio
-      timeout: 60
+      timeout: 300
   variables:
     port:
       type: int
       env: PORT
       description: Port for the backend HTTP server to listen on.
       value: 8080
-    mongodb-username:
-      env: MONGODB_USERNAME
-      value: <- connection-target("user") entity get-member("name")
-      type: string
-    mongodb-password:
-      env: MONGODB_PASSWORD
-      value: <- secret("mongodb-password")
-      type: string
     mongodb-connection-string:
       env: MONGODB_CONNECTION_STRING
-      value: <- connection-target("mongodb") entity-state get-member("connection_srv")
+      value: <- connection-target("mongodb") entity-state get-member("connection/uri")
       type: string
     mongodb-uri:
       type: string
       env: MONGODB_URI
       description: MongoDB connection URI for database access.
-      value: <- $mongodb-connection-string replace("mongodb+srv://", `mongodb+srv://${mongodb-username}:${mongodb-password}@`)
+      value: <- connection-target("mongodb") entity-state get-member("connection/uri")
     redis-uri:
       type: string
       env: REDIS_URI
       description: Redis connection URI for job queue and caching.
-      value: <- `redis://` connection-hostname("redis") ":" connection-port("redis") concat-all
+      value: <- connection-target("redis") entity-state get-member("connection/uri")
     minio-endpoint:
       type: string
       env: MINIO_ENDPOINT
@@ -239,6 +230,16 @@ backend:
       env: GO_ENV
       description: Go environment (development/production).
       value: development
+    auth0-domain:
+      type: string
+      env: AUTH0_DOMAIN
+      description: Auth0 domain for authentication.
+      value: <- secret("default-auth0-management-api-url")
+    auth0-audience:
+      type: string
+      env: AUTH0_AUDIENCE
+      description: Auth0 audience for authentication.
+      value: <- $global-auth0-audience
 
 worker:
   defines: runnable
@@ -263,46 +264,37 @@ worker:
     minio:
       target: video-hosting-example/minio
       service: api
-    user:
-      target: video-hosting-example/mongodb-user
-      service: data
   depends:
     wait-for:
       runnables:
-        - video-hosting-example/mongodb-project
-        - video-hosting-example/mongodb-user
         - video-hosting-example/mongodb-database
         - video-hosting-example/redis
         - video-hosting-example/minio
-      timeout: 60
+      timeout: 300
   variables:
     worker-id:
       type: string
       env: WORKER_ID
       description: Unique identifier for the worker instance.
       value: worker1
-    mongodb-username:
-      env: MONGODB_USERNAME
-      value: <- connection-target("user") entity get-member("name")
-      type: string
     mongodb-password:
       env: MONGODB_PASSWORD
       value: <- secret("mongodb-password")
       type: string
     mongodb-connection-string:
       env: MONGODB_CONNECTION_STRING
-      value: <- connection-target("mongodb") entity-state get-member("connection_srv")
+      value: <- connection-target("mongodb") entity-state get-member("connection/uri")
       type: string
     mongodb-uri:
       type: string
       env: MONGODB_URI
       description: MongoDB connection URI for database access.
-      value: <- $mongodb-connection-string replace("mongodb+srv://", `mongodb+srv://${mongodb-username}:${mongodb-password}@`)
+      value: <- connection-target("mongodb") entity-state get-member("connection/uri")
     redis-uri:
       type: string
       env: REDIS_URI
       description: Redis connection URI for job queue and caching.
-      value: <- `redis://` connection-hostname("redis") ":" connection-port("redis") concat-all
+      value: <- connection-target("redis") entity-state get-member("connection/uri")
     minio-endpoint:
       type: string
       env: MINIO_ENDPOINT
@@ -408,7 +400,7 @@ proxy:
     wait-for:
       runnables:
         - video-hosting-example/backend
-      timeout: 60
+      timeout: 300
 
 frontend:
   defines: runnable
@@ -440,6 +432,21 @@ frontend:
       env: NODE_ENV
       description: Node environment for the frontend build.
       value: development
+    auth0-domain:
+      type: string
+      env: REACT_APP_AUTH0_DOMAIN
+      description: Auth0 domain for authentication.
+      value: <- secret("default-auth0-management-api-url")
+    auth0-audience:
+      type: string
+      env: REACT_APP_AUTH0_AUDIENCE
+      description: Auth0 audience for authentication.
+      value: <- $global-auth0-audience
+    auth0-client-id:
+      type: string
+      env: REACT_APP_AUTH0_CLIENT_ID
+      description: Auth0 client ID for authentication.
+      value: <- connection-target("auth0") entity-state get-member("client-id")
   connections:
     site:
       target: video-hosting-example/frontend-site
@@ -450,29 +457,23 @@ frontend:
     minio-api:
       target: video-hosting-example/minio
       service: api
+    auth0:
+      target: video-hosting-example/auth0
+      service: data
   depends:
     wait-for:
       runnables:
         - video-hosting-example/frontend-site
         - video-hosting-example/proxy
         - video-hosting-example/minio
+        - video-hosting-example/auth0
       timeout: 60
+  permitted-secrets:
+    default-auth0-management-api-url: true
 
 stack:
   defines: group
   variables:
-    global-mongodb-uri:
-      type: string
-      description: MongoDB connection URI for database access.
-      value: "mongodb://admin:password@mongodb:27017/youtube?authSource=admin"
-    global-redis-uri:
-      type: string
-      description: Redis connection URI for job queue and caching.
-      value: "redis://redis:6379"
-    global-minio-endpoint:
-      type: string
-      description: MinIO server endpoint for object storage.
-      value: "minio:9000"
     global-minio-access-key:
       type: string
       description: Access key for MinIO object storage.
@@ -485,34 +486,19 @@ stack:
       type: bool
       description: Whether to use SSL for MinIO connection.
       value: false
-    global-admin-username:
+    global-auth0-audience:
       type: string
-      description: Access key for MinIO object storage.
-      value: 3qfmssogqi
-    global-admin-password:
-      type: string
-      description: Secret key for MinIO object storage.
-      value: yuYaf3IAf-3DhQ_Z
-    global-mongo-init-password:
-      type: string
-      description: MongoDB connection URI for database access.
-      value: Twnp9jS.miC-1dfz
-    global-mongo-init-username:
-      type: string
-      description: MongoDB connection URI for database access.
-      value: admin
-    global-mongo-init-database:
-      type: string
-      description: MongoDB connection URI for database access.
-      value: youtube
+      description: Auth0 audience for authentication.
+      value: https://videotube
   members:
     - video-hosting-example/backend
     - video-hosting-example/worker
-    - video-hosting-example/mongodb-project
-    - video-hosting-example/mongodb-user
     - video-hosting-example/mongodb-database
+    - video-hosting-example/spaces-keys
+    - video-hosting-example/spaces
     - video-hosting-example/minio
     - video-hosting-example/proxy
     - video-hosting-example/frontend-site
     - video-hosting-example/frontend
     - video-hosting-example/redis
+    - video-hosting-example/auth0

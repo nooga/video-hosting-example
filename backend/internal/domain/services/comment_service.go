@@ -18,11 +18,12 @@ func NewCommentService(repo repositories.CommentRepository) *CommentService {
 	return &CommentService{repo: repo}
 }
 
-func (s *CommentService) CreatePending(ctx context.Context, videoID primitive.ObjectID, authorID, content string) (*entities.Comment, error) {
+func (s *CommentService) CreatePending(ctx context.Context, videoID primitive.ObjectID, authorID primitive.ObjectID, authorSubject, authorName, authorAvatar, content string) (*entities.Comment, error) {
 	if content == "" {
 		return nil, fmt.Errorf("content is required")
 	}
-	comment := entities.NewComment(videoID, authorID, content)
+	comment := entities.NewComment(videoID, authorID, authorName, authorAvatar, content)
+	comment.AuthorSubject = authorSubject
 	if err := s.repo.Create(ctx, comment); err != nil {
 		return nil, err
 	}
@@ -41,8 +42,8 @@ func (s *CommentService) Error(ctx context.Context, id primitive.ObjectID, reaso
 	return s.repo.UpdateStatus(ctx, id, entities.CommentStatusError, reason)
 }
 
-func (s *CommentService) ListForVideo(ctx context.Context, videoID primitive.ObjectID, authorID string, includePendingForAuthor bool, limit, offset int) ([]*entities.Comment, error) {
-	return s.repo.ListByVideo(ctx, videoID, authorID, includePendingForAuthor, limit, offset)
+func (s *CommentService) ListForVideo(ctx context.Context, videoID primitive.ObjectID, authorSubject string, includePendingForAuthor bool, limit, offset int) ([]*entities.Comment, error) {
+	return s.repo.ListByVideo(ctx, videoID, authorSubject, includePendingForAuthor, limit, offset)
 }
 
 func (s *CommentService) GetByID(ctx context.Context, id primitive.ObjectID) (*entities.Comment, error) {

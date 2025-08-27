@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { PlayIcon, ClockIcon } from '@heroicons/react/24/solid';
-import { Video } from '../types/video';
-import { VideoAPI } from '../services/api';
+import React, { useState } from "react";
+import { PlayIcon, ClockIcon } from "@heroicons/react/24/solid";
+import { Video } from "../types/video";
+import { VideoAPI } from "../services/api";
 
 interface VideoCardProps {
   video: Video;
@@ -13,23 +13,27 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
   const getStatusColor = (status: string): string => {
     switch (status) {
-      case 'ready': return 'bg-green-100 text-green-800';
-      case 'processing': return 'bg-yellow-100 text-yellow-800';
-      case 'failed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "ready":
+        return "bg-green-100 text-green-800";
+      case "processing":
+        return "bg-yellow-100 text-yellow-800";
+      case "failed":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -37,16 +41,16 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
     if (video.thumbnails && video.thumbnails.length > 0) {
       return VideoAPI.getThumbnailUrl(video.thumbnails[0]);
     }
-    return ''; // Will trigger fallback
+    return ""; // Will trigger fallback
   };
 
   return (
-    <div
-      className="video-card cursor-pointer"
-      onClick={() => onClick?.(video)}
-    >
+    <div className="video-card cursor-pointer" onClick={() => onClick?.(video)}>
       {/* Thumbnail */}
-      <div className="relative w-full bg-gray-200" style={{ aspectRatio: '16/9' }}>
+      <div
+        className="relative w-full bg-gray-200"
+        style={{ aspectRatio: "16/9" }}
+      >
         {getThumbnailUrl() && !imageError ? (
           <img
             src={getThumbnailUrl()}
@@ -65,31 +69,49 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
             }}
           />
         ) : null}
-        
+
         {/* Fallback content when no thumbnail */}
-        <div className={`absolute inset-0 flex items-center justify-center ${getThumbnailUrl() && !imageError ? 'hidden' : 'block'}`}>
+        <div
+          className={`absolute inset-0 flex items-center justify-center ${
+            getThumbnailUrl() && !imageError ? "hidden" : "block"
+          }`}
+        >
           <div className="text-center">
-            <div className={`w-16 h-16 rounded-full mb-2 mx-auto flex items-center justify-center ${
-              video.status === 'ready' ? 'bg-green-100' :
-              video.status === 'processing' ? 'bg-yellow-100' :
-              video.status === 'failed' ? 'bg-red-100' :
-              'bg-gray-100'
-            }`}>
-              <PlayIcon className={`h-8 w-8 ${
-                video.status === 'ready' ? 'text-green-600' :
-                video.status === 'processing' ? 'text-yellow-600' :
-                video.status === 'failed' ? 'text-red-600' :
-                'text-gray-600'
-              }`} />
+            <div
+              className={`w-16 h-16 rounded-full mb-2 mx-auto flex items-center justify-center ${
+                video.status === "ready"
+                  ? "bg-green-100"
+                  : video.status === "processing"
+                  ? "bg-yellow-100"
+                  : video.status === "failed"
+                  ? "bg-red-100"
+                  : "bg-gray-100"
+              }`}
+            >
+              <PlayIcon
+                className={`h-8 w-8 ${
+                  video.status === "ready"
+                    ? "text-green-600"
+                    : video.status === "processing"
+                    ? "text-yellow-600"
+                    : video.status === "failed"
+                    ? "text-red-600"
+                    : "text-gray-600"
+                }`}
+              />
             </div>
             <p className="text-xs text-gray-500">
-              {video.status === 'processing' ? 'Processing...' : 
-               video.status === 'failed' ? 'Failed' :
-               video.status === 'ready' ? 'Ready' : 'Uploaded'}
+              {video.status === "processing"
+                ? "Processing..."
+                : video.status === "failed"
+                ? "Failed"
+                : video.status === "ready"
+                ? "Ready"
+                : "Uploaded"}
             </p>
           </div>
         </div>
-        
+
         {/* Play Button Overlay */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-50">
           <PlayIcon className="h-12 w-12 text-white" />
@@ -104,7 +126,11 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
         )}
 
         {/* Status Badge */}
-        <div className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(video.status)}`}>
+        <div
+          className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+            video.status
+          )}`}
+        >
           {video.status}
         </div>
       </div>
@@ -114,7 +140,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
         <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
           {video.title}
         </h3>
-        
+
         {video.description && (
           <p className="text-sm text-gray-600 mb-3 line-clamp-2">
             {video.description}
@@ -122,7 +148,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
         )}
 
         <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>By {video.uploaded_by}</span>
+          <span>By {video.uploader_name || video.uploaded_by}</span>
           <span>{formatFileSize(video.size)}</span>
         </div>
 
@@ -137,4 +163,4 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
   );
 };
 
-export default VideoCard; 
+export default VideoCard;

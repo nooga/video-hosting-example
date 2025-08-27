@@ -25,7 +25,7 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 	// Initialize repositories
 	videoRepo := repositories.NewVideoRepository(db)
 	jobRepo := repositories.NewJobRepository(db)
-	// userRepo := repositories.NewUserRepository(db) // TODO: Implement user handlers
+	userRepo := repositories.NewUserRepository(db)
 
 	// Initialize job publisher
 	jobPublisher := queue.NewJobPublisher(redis)
@@ -37,7 +37,7 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 	commentService := services.NewCommentService(commentRepo)
 
 	// Initialize handlers
-	videoHandler := handlers.NewVideoHandler(videoService, minio, logger)
+	videoHandler := handlers.NewVideoHandler(videoService, minio, userRepo, logger)
 	jobHandler := handlers.NewJobHandler(processingService, logger)
 	commentHandler := handlers.NewCommentHandler(commentService, jobPublisher, cfg.Moderation, logger)
 
@@ -57,7 +57,11 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 		{
 			// Protect upload with Auth0 middleware when configured
 			if cfg.Auth0.Domain != "" && cfg.Auth0.Audience != "" {
-				videos.POST("/upload", middleware.Auth0Middleware(cfg.Auth0.Domain, cfg.Auth0.Audience), videoHandler.UploadVideo)
+				videos.POST("/upload",
+					middleware.Auth0Middleware(cfg.Auth0.Domain, cfg.Auth0.Audience),
+					middleware.SyncUserMiddleware(userRepo),
+					videoHandler.UploadVideo,
+				)
 			} else {
 				videos.POST("/upload", videoHandler.UploadVideo)
 			}
@@ -83,7 +87,11 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 			comments.GET("", commentHandler.List)
 			// Create requires auth
 			if cfg.Auth0.Domain != "" && cfg.Auth0.Audience != "" {
-				comments.POST("", middleware.Auth0Middleware(cfg.Auth0.Domain, cfg.Auth0.Audience), commentHandler.Create)
+				comments.POST("",
+					middleware.Auth0Middleware(cfg.Auth0.Domain, cfg.Auth0.Audience),
+					middleware.SyncUserMiddleware(userRepo),
+					commentHandler.Create,
+				)
 			} else {
 				comments.POST("", commentHandler.Create)
 			}

@@ -114,13 +114,17 @@ export class VideoAPI {
     title: string,
     description: string,
     uploadedBy: string = "anonymous",
-    onProgress?: (progress: UploadProgress) => void
+    onProgress?: (progress: UploadProgress) => void,
+    uploaderName?: string,
+    uploaderAvatar?: string
   ): Promise<UploadResponse> {
     const formData = new FormData();
     formData.append("video", file);
     formData.append("title", title);
     formData.append("description", description);
     formData.append("uploaded_by", uploadedBy);
+    if (uploaderName) formData.append("uploader_name", uploaderName);
+    if (uploaderAvatar) formData.append("uploader_avatar", uploaderAvatar);
 
     const response = await api.post("/api/v1/videos/upload", formData, {
       headers: {
@@ -230,6 +234,8 @@ export class VideoAPI {
       id: string;
       video_id: string;
       author_id: string;
+      author_name?: string;
+      author_avatar?: string;
       content: string;
       status: string;
       reason?: string;
@@ -247,11 +253,15 @@ export class VideoAPI {
 
   static async createComment(
     videoId: string,
-    content: string
+    content: string,
+    authorName?: string,
+    authorAvatar?: string
   ): Promise<{
     id: string;
     video_id: string;
     author_id: string;
+    author_name?: string;
+    author_avatar?: string;
     content: string;
     status: string;
     created_at: string;
@@ -259,6 +269,8 @@ export class VideoAPI {
   }> {
     const response = await api.post(`/api/v1/videos/${videoId}/comments`, {
       content,
+      author_name: authorName,
+      author_avatar: authorAvatar,
     });
     return response.data;
   }

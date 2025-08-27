@@ -72,6 +72,12 @@ services:
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_USE_SSL=false
       - FRONTEND_URL=http://localhost:3000
+      - AUTH0_DOMAIN=monk-demo.us.auth0.com
+      - AUTH0_AUDIENCE=https://videotube
+      - MODERATION_ENABLED=false
+      - MODERATION_API_URL=
+      - MODERATION_API_TOKEN=
+      - MODERATION_MODEL=
     depends_on:
       - mongodb
       - redis
@@ -113,6 +119,10 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_USE_SSL=false
+      - MODERATION_ENABLED=false
+      - MODERATION_API_URL=
+      - MODERATION_API_TOKEN=
+      - MODERATION_MODEL=
     depends_on:
       - mongodb
       - redis
@@ -137,6 +147,10 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_USE_SSL=false
+      - MODERATION_ENABLED=false
+      - MODERATION_API_URL=
+      - MODERATION_API_TOKEN=
+      - MODERATION_MODEL=
     depends_on:
       - mongodb
       - redis

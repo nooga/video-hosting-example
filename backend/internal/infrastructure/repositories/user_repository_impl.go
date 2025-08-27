@@ -25,7 +25,14 @@ func NewUserRepository(db *database.MongoDB) repositories.UserRepository {
 }
 
 func (r *UserRepositoryImpl) Create(ctx context.Context, user *entities.User) error {
-	// Check for duplicate username or email
+	// Check for duplicate subject, username or email
+	if user.Subject != "" {
+		existingBySub, _ := r.GetBySubject(ctx, user.Subject)
+		if existingBySub != nil {
+			return fmt.Errorf("subject already exists")
+		}
+	}
+
 	existingUser, _ := r.GetByUsername(ctx, user.Username)
 	if existingUser != nil {
 		return fmt.Errorf("username already exists")
@@ -75,6 +82,18 @@ func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, email string) (*ent
 			return nil, nil // Return nil without error for "not found" case
 		}
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
+	}
+	return &user, nil
+}
+
+func (r *UserRepositoryImpl) GetBySubject(ctx context.Context, subject string) (*entities.User, error) {
+	var user entities.User
+	err := r.collection.FindOne(ctx, bson.M{"subject": subject}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user by subject: %w", err)
 	}
 	return &user, nil
 }

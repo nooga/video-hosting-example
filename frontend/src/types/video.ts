@@ -3,6 +3,8 @@ export interface Video {
   title: string;
   description: string;
   uploaded_by: string;
+  uploader_name?: string;
+  uploader_avatar?: string;
   original_filename: string;
   duration: number;
   size: number;
@@ -19,7 +21,7 @@ export interface VideoFormat {
   size: number;
 }
 
-export type VideoStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
+export type VideoStatus = "uploaded" | "processing" | "ready" | "failed";
 
 export interface Job {
   id: string;
@@ -36,8 +38,8 @@ export interface Job {
   completed_at?: string;
 }
 
-export type JobType = 'transcode' | 'thumbnail';
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type JobType = "transcode" | "thumbnail";
+export type JobStatus = "pending" | "processing" | "completed" | "failed";
 
 export interface UploadResponse {
   video_id: string;
@@ -87,4 +89,4 @@ export interface UploadState {
   error: string | null;
   success: boolean;
   videoId: string | null;
-} 
+}

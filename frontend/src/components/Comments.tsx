@@ -5,6 +5,7 @@ import { VideoAPI } from "../services/api";
 interface CommentItem {
   id: string;
   author: string;
+  avatar?: string;
   content: string;
   createdAt: string;
   status?: string;
@@ -32,7 +33,8 @@ const Comments: React.FC<CommentsProps> = ({
         setComments(
           res.comments.map((c) => ({
             id: c.id,
-            author: c.author_id,
+            author: c.author_name || c.author_id,
+            avatar: c.author_avatar,
             content: c.content,
             createdAt: c.created_at,
             status: c.status,
@@ -53,7 +55,9 @@ const Comments: React.FC<CommentsProps> = ({
       const created = await VideoAPI.createComment(videoId, text.trim());
       const newComment: CommentItem = {
         id: created.id,
-        author: user?.name || user?.email || created.author_id,
+        author:
+          created.author_name || user?.name || user?.email || created.author_id,
+        avatar: created.author_avatar || user?.picture,
         content: created.content,
         createdAt: created.created_at,
         status: created.status,
@@ -71,7 +75,15 @@ const Comments: React.FC<CommentsProps> = ({
 
       <form onSubmit={handleSubmit} className="mb-4">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0" />
+          <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+            {user?.picture ? (
+              <img
+                src={user.picture}
+                alt="avatar"
+                className="h-10 w-10 object-cover"
+              />
+            ) : null}
+          </div>
           <div className="flex-1">
             <textarea
               value={text}
@@ -142,7 +154,16 @@ const Comments: React.FC<CommentsProps> = ({
         ) : (
           comments.map((c) => (
             <div key={c.id} className="border border-gray-200 rounded-lg p-3">
-              <div className="text-sm text-gray-600 mb-1">
+              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                <div className="h-6 w-6 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                  {c.avatar ? (
+                    <img
+                      src={c.avatar}
+                      alt="avatar"
+                      className="h-6 w-6 object-cover"
+                    />
+                  ) : null}
+                </div>
                 <span className="font-medium text-gray-900">{c.author}</span>
                 <span className="mx-1">•</span>
                 <span>{new Date(c.createdAt).toLocaleString()}</span>

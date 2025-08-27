@@ -42,13 +42,13 @@ func (r *CommentRepositoryImpl) GetByID(ctx context.Context, id primitive.Object
 	return &c, nil
 }
 
-func (r *CommentRepositoryImpl) ListByVideo(ctx context.Context, videoID primitive.ObjectID, authorID string, includePendingForAuthor bool, limit, offset int) ([]*entities.Comment, error) {
+func (r *CommentRepositoryImpl) ListByVideo(ctx context.Context, videoID primitive.ObjectID, authorSubject string, includePendingForAuthor bool, limit, offset int) ([]*entities.Comment, error) {
 	filter := bson.M{"video_id": videoID}
-	// Only published are visible to everyone; if authorID provided and includePendingForAuthor, include pending by that author
-	if includePendingForAuthor && authorID != "" {
+	// Only published are visible to everyone; if includePendingForAuthor, include pending by same subject stored in denormalized field
+	if includePendingForAuthor && authorSubject != "" {
 		filter["$or"] = []bson.M{
 			{"status": entities.CommentStatusPublished},
-			{"status": entities.CommentStatusPending, "author_id": authorID},
+			{"status": entities.CommentStatusPending, "author_subject": authorSubject},
 		}
 	} else {
 		filter["status"] = entities.CommentStatusPublished

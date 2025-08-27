@@ -32,14 +32,19 @@ func NewVideoService(videoRepo repositories.VideoRepository, jobRepo repositorie
 }
 
 // CreateVideo creates a new video and schedules processing jobs
-func (s *VideoService) CreateVideo(ctx context.Context, title, description, uploadedBy, originalFilename string, size int64) (*entities.Video, error) {
+func (s *VideoService) CreateVideo(ctx context.Context, title, description, uploadedBy, uploaderName, uploaderAvatar, originalFilename string, size int64, opts ...primitive.ObjectID) (*entities.Video, error) {
 	// Validate input
 	if err := s.validateVideoInput(title, originalFilename, size); err != nil {
 		return nil, err
 	}
 
+	var uploaderOID primitive.ObjectID
+	if len(opts) > 0 {
+		uploaderOID = opts[0]
+	}
+
 	// Create video entity
-	video := entities.NewVideo(title, description, uploadedBy, originalFilename, size)
+	video := entities.NewVideo(uploaderOID, title, description, uploadedBy, uploaderName, uploaderAvatar, originalFilename, size)
 
 	// Save to repository
 	if err := s.videoRepo.Create(ctx, video); err != nil {
