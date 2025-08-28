@@ -98,21 +98,11 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	// Set denormalized subject for filtering pending on list
 	comment.AuthorSubject = authSub
 
-	// If moderation configured, enqueue moderation job; otherwise publish immediately
-	if h.moderation.Enabled && h.moderation.APIURL != "" && h.moderation.APIToken != "" {
-		if err := h.jobPublisher.PublishCommentModeration(ctx, comment.ID, objID); err != nil {
-			h.logger.Error("failed to enqueue moderation job", zap.Error(err))
-		}
-		resp := h.toResponse(comment)
-		c.JSON(http.StatusCreated, resp)
-		return
+	// Always enqueue moderation job; worker decides whether to moderate or pass-through
+	if err := h.jobPublisher.PublishCommentModeration(ctx, comment.ID, objID); err != nil {
+		h.logger.Error("failed to enqueue moderation job", zap.Error(err))
 	}
-
-	if err := h.service.Publish(ctx, comment.ID); err != nil {
-		h.logger.Error("failed to publish comment without moderation", zap.Error(err))
-	}
-	published, _ := h.service.GetByID(ctx, comment.ID)
-	resp := h.toResponse(published)
+	resp := h.toResponse(comment)
 	c.JSON(http.StatusCreated, resp)
 }
 

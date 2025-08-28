@@ -214,3 +214,15 @@ func (m *MongoClient) UpdateCommentStatus(ctx context.Context, commentID, status
 	_, err = m.commentsCollection.UpdateOne(ctx, bson.M{"_id": objID}, update)
 	return err
 }
+
+// GetComment retrieves a comment document by string ID
+func (m *MongoClient) GetComment(ctx context.Context, commentID string) (bson.M, error) {
+	objID, err := primitive.ObjectIDFromHex(commentID)
+	if err != nil {
+		return nil, err
+	}
+
+	var comment bson.M
+	err = m.commentsCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&comment)
+	return comment, err
+}

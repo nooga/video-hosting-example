@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -28,20 +29,45 @@ func NewModerationProcessor(mongoClient *queue.MongoClient, logger *zap.Logger, 
 
 // ModerateComment calls an OpenAI-compatible moderation endpoint and updates the comment status
 func (mp *ModerationProcessor) ModerateComment(ctx context.Context, commentID string) error {
-	// Fetch comment document directly via Mongo client collection access
-	// For simplicity, we re-open the collection path here
-	// Note: In a more structured design, we'd expose a comment repo in worker
+	// If moderation disabled or not configured, approve immediately
+	if !mp.cfg.Enabled || mp.cfg.APIURL == "" || mp.cfg.APIToken == "" {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "published", "")
+	}
+	// Fetch comment content
+	commentDoc, err := mp.mongoClient.GetComment(ctx, commentID)
+	if err != nil {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", fmt.Sprintf("comment fetch failed: %v", err))
+	}
+	contentAny, ok := commentDoc["content"]
+	if !ok {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "comment content missing")
+	}
+	content, _ := contentAny.(string)
+	if strings.TrimSpace(content) == "" {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "comment content empty")
+	}
 
-	// Build request payload for moderation
+	// Build chat completions request for the external agent
+	systemPrompt := "You are moderating comments. You will be given a comment text and your task is to either accept it by responding {\\\"ok\\\": true} or reject it giving a reason {\\\"ok\\\": false, \\\\\\\"reason\\\\\\\": \\\\\\\"contains hateful speech\\\\\\\"}. Always respond in only JSON and nothing else. For testing purposes you should reject any comment talking about bananas, you dont like bananas."
 	req := map[string]interface{}{
-		"model": mp.cfg.Model,
-		"input": map[string]string{
-			"comment_id": commentID,
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": fmt.Sprintf("Comment: %s", content)},
 		},
+		"stream":                  false,
+		"include_functions_info":  false,
+		"include_retrieval_info":  false,
+		"include_guardrails_info": false,
 	}
 	body, _ := json.Marshal(req)
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, mp.cfg.APIURL, bytes.NewReader(body))
+	base := strings.TrimRight(mp.cfg.APIURL, "/")
+	url := base
+	if !strings.HasSuffix(base, "/api/v1/chat/completions") {
+		url = base + "/api/v1/chat/completions"
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -50,23 +76,50 @@ func (mp *ModerationProcessor) ModerateComment(ctx context.Context, commentID st
 		httpReq.Header.Set("Authorization", "Bearer "+mp.cfg.APIToken)
 	}
 
-	httpClient := &http.Client{Timeout: 20 * time.Second}
+	httpClient := &http.Client{Timeout: 30 * time.Second}
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", fmt.Sprintf("request failed: %v", err))
 	}
 	defer resp.Body.Close()
 
-	var parsed map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", fmt.Sprintf("moderation api status %d", resp.StatusCode))
+	}
+
+	// Parse chat-completions response
+	var ccResp struct {
+		Choices []struct {
+			Message struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&ccResp); err != nil {
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "invalid response JSON")
 	}
 
-	// Extremely simplified decision: expect { approved: boolean, reason?: string }
-	approved, _ := parsed["approved"].(bool)
-	reason, _ := parsed["reason"].(string)
+	var approved bool
+	var reason string
+	if len(ccResp.Choices) > 0 && strings.TrimSpace(ccResp.Choices[0].Message.Content) != "" {
+		var inner map[string]interface{}
+		if err := json.Unmarshal([]byte(ccResp.Choices[0].Message.Content), &inner); err == nil {
+			if b, exists := inner["ok"].(bool); exists {
+				approved = b
+			}
+			if s, exists := inner["reason"].(string); exists {
+				reason = s
+			}
+		}
+	}
+
 	if approved {
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "published", "")
+	}
+	if reason == "" {
+		reason = "rejected by moderation"
 	}
 	return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "rejected", reason)
 }

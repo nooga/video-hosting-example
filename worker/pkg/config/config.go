@@ -23,6 +23,7 @@ type MinIOConfig struct {
 }
 
 type ModerationConfig struct {
+	Enabled  bool
 	APIURL   string
 	APIToken string
 	Model    string
@@ -45,6 +46,7 @@ func Load() *Config {
 			BucketName: getEnv("MINIO_BUCKET_NAME", "videos"),
 		},
 		Moderation: ModerationConfig{
+			Enabled:  getEnv("MODERATION_ENABLED", "false") == "true",
 			APIURL:   getEnv("MODERATION_API_URL", ""),
 			APIToken: getEnv("MODERATION_API_TOKEN", ""),
 			Model:    getEnv("MODERATION_MODEL", ""),

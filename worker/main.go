@@ -133,10 +133,13 @@ func processJobs(ctx context.Context, redisClient *queue.RedisClient, videoProce
 		zap.String("type", job.Type),
 		zap.String("worker_id", workerID))
 
-	// Start job
-	if err := videoProcessor.StartJob(ctx, job.ID, workerID); err != nil {
-		log.Error("Failed to start job", zap.Error(err))
-		return err
+	// Only track start/complete in Mongo for video-processing jobs
+	isTrackedJob := job.Type == "transcode" || job.Type == "thumbnail"
+	if isTrackedJob {
+		if err := videoProcessor.StartJob(ctx, job.ID, workerID); err != nil {
+			log.Error("Failed to start job", zap.Error(err))
+			return err
+		}
 	}
 
 	// Process based on job type
@@ -163,8 +166,16 @@ func processJobs(ctx context.Context, redisClient *queue.RedisClient, videoProce
 			zap.String("job_id", job.ID),
 			zap.String("type", job.Type),
 			zap.Error(processErr))
-		return videoProcessor.FailJob(ctx, job.ID, processErr.Error())
+		if isTrackedJob {
+			return videoProcessor.FailJob(ctx, job.ID, processErr.Error())
+		}
+		// For non-tracked jobs (e.g., comment moderation), we already updated comment status.
+		// Do not attempt to fail a non-existent DB job; just return nil.
+		return nil
 	}
 
-	return videoProcessor.CompleteJob(ctx, job.ID)
+	if isTrackedJob {
+		return videoProcessor.CompleteJob(ctx, job.ID)
+	}
+	return nil
 }
