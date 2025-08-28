@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
@@ -22,6 +23,7 @@ type MinIOClient struct {
 
 // NewMinIOClient creates a new MinIO client
 func NewMinIOClient(cfg config.MinIOConfig, logger *zap.Logger) (*MinIOClient, error) {
+	fmt.Printf("MinIO Config: %+v\n", cfg) // Debug print to verify config
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: cfg.UseSSL,
@@ -32,8 +34,8 @@ func NewMinIOClient(cfg config.MinIOConfig, logger *zap.Logger) (*MinIOClient, e
 
 	minioClient := &MinIOClient{
 		client:               client,
-		videosBucketName:     "videos",
-		thumbnailsBucketName: "thumbnails",
+		videosBucketName:     cfg.BucketName,
+		thumbnailsBucketName: cfg.BucketName,
 		logger:               logger,
 	}
 

@@ -27,8 +27,8 @@ func NewMinIOClient(cfg config.MinIOConfig) (*MinIOClient, error) {
 
 	return &MinIOClient{
 		client:               client,
-		videosBucketName:     "videos",
-		thumbnailsBucketName: "thumbnails",
+		videosBucketName:     cfg.BucketName,
+		thumbnailsBucketName: cfg.BucketName,
 	}, nil
 }
 

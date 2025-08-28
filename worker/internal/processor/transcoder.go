@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
@@ -82,6 +83,7 @@ func (vp *VideoProcessor) TranscodeVideo(ctx context.Context, videoID, jobID, qu
 	vp.logger.Info("Starting video transcoding",
 		zap.String("video_id", videoID),
 		zap.String("quality", quality))
+	time.Sleep(5 * time.Second)
 
 	// Get video info from database
 	video, err := vp.mongoClient.GetVideo(ctx, videoID)
@@ -213,6 +215,7 @@ func (vp *VideoProcessor) buildFFmpegArgs(inputPath, outputPath, quality string)
 
 func (vp *VideoProcessor) GenerateThumbnail(ctx context.Context, videoID, jobID string) error {
 	vp.logger.Info("Starting thumbnail generation", zap.String("video_id", videoID))
+	time.Sleep(5 * time.Second)
 
 	// Get video info from database
 	video, err := vp.mongoClient.GetVideo(ctx, videoID)
