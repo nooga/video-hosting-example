@@ -1,0 +1,61 @@
+name: Deploy to Monk Cluster
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install podman
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y podman
+
+    - name: Set up Docker Buildx (fallback)
+      uses: docker/setup-buildx-action@v3
+
+    - name: Make scripts executable
+      run: |
+        chmod +x scripts/parse-manifest.sh
+        chmod +x scripts/build-images.sh
+
+    - name: Build and push images
+      run: ./scripts/build-images.sh
+      env:
+        REGISTRY_ADDRESS: ${{ secrets.REGISTRY_ADDRESS }}
+        REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+        REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        REGISTRY_TLS_VERIFY: ${{ secrets.REGISTRY_TLS_VERIFY }}
+
+  deploy:
+    needs: build-images
+    runs-on: ubuntu-latest
+
+    container:
+      image: monkreleases.azurecr.io/monk-ci:latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Make scripts executable
+      run: |
+        chmod +x scripts/deploy.sh
+        chmod +x scripts/parse-manifest.sh
+
+    - name: Deploy to Monk cluster
+      run: ./scripts/deploy.sh
+      env:
+        MONKCODE: ${{ secrets.MONKCODE }}
+        MONK_SERVICE_TOKEN: ${{ secrets.MONK_SERVICE_TOKEN }}
+        MONK_TAG: "default"
+        MONK_WORKLOAD: "video-hosting-example/stack"
