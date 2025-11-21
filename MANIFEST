@@ -1,8 +1,0 @@
-REPO video-hosting-example
-LOAD video-hosting-example.yaml
-ENTRY video-hosting-example/stack
-IMAGE backend:latest backend backend Dockerfile
-IMAGE worker:latest worker worker Dockerfile
-SECRET default-netlify-pat default-mongodb-org default-mongodb-token default-auth0-management-client-id default-auth0-management-client-secret default-auth0-management-api-url
-BLOBS frontend:frontend
-BLOBSIGNORE **/node_modules

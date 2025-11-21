@@ -116,10 +116,10 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_USE_SSL=false
-      - MODERATION_ENABLED=true
-      - MODERATION_API_URL=https://isht3ln4axc6adr2jnxqql5i.agents.do-ai.run/
-      - MODERATION_API_TOKEN=OSJmqPNmx8m6BUOEdoheUc5to92Q2F_I
-      - MODERATION_MODEL=moderation
+      - LLM_ENABLED=true
+      - LLM_API_URL=https://isht3ln4axc6adr2jnxqql5i.agents.do-ai.run/
+      - LLM_API_TOKEN=OSJmqPNmx8m6BUOEdoheUc5to92Q2F_I
+      - LLM_MODEL=moderation
     depends_on:
       - mongodb
       - redis
@@ -144,10 +144,10 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_USE_SSL=false
-      - MODERATION_ENABLED=true
-      - MODERATION_API_URL=https://isht3ln4axc6adr2jnxqql5i.agents.do-ai.run/
-      - MODERATION_API_TOKEN=OSJmqPNmx8m6BUOEdoheUc5to92Q2F_I
-      - MODERATION_MODEL=moderation
+      - LLM_ENABLED=true
+      - LLM_API_URL=https://isht3ln4axc6adr2jnxqql5i.agents.do-ai.run/
+      - LLM_API_TOKEN=OSJmqPNmx8m6BUOEdoheUc5to92Q2F_I
+      - LLM_MODEL=moderation
     depends_on:
       - mongodb
       - redis

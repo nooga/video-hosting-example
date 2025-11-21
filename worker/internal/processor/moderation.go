@@ -1,5 +1,17 @@
 package processor
 
+// ModerationProcessor handles LLM-powered comment moderation
+// Compatible with any OpenAI-compatible API including:
+// - OpenAI (https://api.openai.com/v1)
+// - Ollama for self-hosting (http://localhost:11434/v1) - free, runs locally
+// - Azure OpenAI, LM Studio, LocalAI, and other providers
+//
+// Configure via environment variables:
+// - LLM_ENABLED=true
+// - LLM_API_URL=<your-api-endpoint>
+// - LLM_API_TOKEN=<your-api-token> (not required for Ollama)
+// - LLM_MODEL=<model-name> (optional)
+
 import (
 	"bytes"
 	"context"

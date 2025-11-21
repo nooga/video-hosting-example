@@ -4,7 +4,7 @@ A complete YouTube-like video processing and sharing platform built with modern 
 
 ## 🏗️ Architecture
 
-This platform follows a microservices architecture with **distributed video processing**:
+This platform follows a microservices architecture with **distributed video processing** and **AI-powered moderation**:
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -25,10 +25,13 @@ This platform follows a microservices architecture with **distributed video proc
                         └─────────────────┘
                                  │
                                  ▼
-                       ┌─────────────────┐
-                       │      MinIO      │
-                       │   (Port: 9000)  │
-                       └─────────────────┘
+                       ┌─────────────────┐         ┌──────────────────┐
+                       │      MinIO      │         │ LLM API (Optional)│
+                       │   (Port: 9000)  │         │ Comment Moderation│
+                       └─────────────────┘         └──────────────────┘
+                                                             ▲
+                                                             │
+                                                   (Workers call for moderation)
 ```
 
 ### Technology Stack
@@ -40,6 +43,7 @@ This platform follows a microservices architecture with **distributed video proc
 - **Queue**: Redis 7.0 (distributed job processing)
 - **Storage**: MinIO (S3-compatible, video files)
 - **Processing**: FFmpeg (video transcoding & thumbnails)
+- **AI Moderation**: OpenAI-compatible LLM API (optional)
 - **Deployment**: Docker Compose
 
 ## 🚀 Quick Start
@@ -107,6 +111,13 @@ This platform follows a microservices architecture with **distributed video proc
 - ✅ **Database Operations**: MongoDB with proper indexing
 - ✅ **File Streaming**: Direct video streaming with quality selection
 
+**🤖 AI Features**
+
+- ✅ **LLM Comment Moderation**: OpenAI-compatible API integration
+- ✅ **Async Processing**: Queue-based moderation workflow
+- ✅ **Graceful Fallback**: Auto-approval if LLM unavailable
+- ✅ **Multi-Provider Support**: Works with OpenAI, Azure, local LLMs
+
 **🏗️ DevOps & Deployment**
 
 - ✅ **Docker Compose**: Complete containerized stack
@@ -163,6 +174,25 @@ GET    /api/v1/jobs/active
 curl http://localhost:8080/api/v1/jobs/active
 ```
 
+### Comments
+
+```bash
+# List comments for a video (public, shows pending for authenticated author)
+GET    /api/v1/videos/:id/comments?page=1&limit=20
+curl http://localhost:8080/api/v1/videos/64a7b8c9d1e2f3a4b5c6d7e8/comments
+
+# Create comment (requires authentication if Auth0 configured)
+POST   /api/v1/videos/:id/comments
+curl -X POST http://localhost:8080/api/v1/videos/64a7b8c9d1e2f3a4b5c6d7e8/comments \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Great video!",
+    "author_name": "John Doe",
+    "author_avatar": "https://example.com/avatar.jpg"
+  }'
+```
+
 ### Health
 
 ```bash
@@ -170,6 +200,211 @@ curl http://localhost:8080/api/v1/jobs/active
 GET    /health
 curl http://localhost:8080/health
 ```
+
+## 🤖 AI-Powered Comment Moderation
+
+This platform includes **optional LLM-powered content moderation** for user comments using OpenAI-compatible APIs.
+
+> **💡 Quick Start**: Want free, self-hosted AI moderation? Install [Ollama](https://ollama.ai), run `ollama pull llama2`, and set `LLM_ENABLED=true` with `LLM_API_URL=http://localhost:11434/v1` - no API keys needed!
+
+### Overview
+
+When users post comments, they are automatically sent through an AI moderation system that:
+
+- ✅ Analyzes comment content for policy violations
+- ✅ Approves safe comments automatically
+- ✅ Rejects inappropriate content with reasons
+- ✅ Processes asynchronously via job queue
+- ✅ Falls back gracefully if LLM is unavailable
+
+### Configuration
+
+Add these environment variables to enable LLM moderation:
+
+| Variable        | Description                                                      | Required | Default |
+| --------------- | ---------------------------------------------------------------- | -------- | ------- |
+| `LLM_ENABLED`   | Enable/disable LLM moderation                                    | No       | `false` |
+| `LLM_API_URL`   | OpenAI-compatible API endpoint (OpenAI, Ollama, Azure, etc.)     | Yes\*    | -       |
+| `LLM_API_TOKEN` | API authentication bearer token (not required for Ollama)        | Yes\*    | -       |
+| `LLM_MODEL`     | Model identifier - e.g., `gpt-4`, `llama2`, `mistral` (optional) | No       | -       |
+
+\*_Required only if `LLM_ENABLED=true`_
+
+### Setup Examples
+
+#### Using OpenAI
+
+```bash
+LLM_ENABLED=true
+LLM_API_URL=https://api.openai.com/v1
+LLM_API_TOKEN=sk-your-openai-api-key
+LLM_MODEL=gpt-4
+```
+
+#### Using Azure OpenAI
+
+```bash
+LLM_ENABLED=true
+LLM_API_URL=https://your-resource.openai.azure.com/openai/deployments/your-deployment
+LLM_API_TOKEN=your-azure-api-key
+LLM_MODEL=gpt-4
+```
+
+#### Using Ollama (Self-Hosted, Free)
+
+Ollama is perfect for self-hosting without API costs. [Install Ollama](https://ollama.ai) and run:
+
+```bash
+# Pull a model (first time only)
+ollama pull llama2
+
+# Start Ollama (runs as a service)
+ollama serve
+
+# Configure the platform
+LLM_ENABLED=true
+LLM_API_URL=http://localhost:11434/v1
+LLM_API_TOKEN=optional  # Ollama doesn't require tokens by default
+LLM_MODEL=llama2
+```
+
+**Recommended Ollama models for moderation:**
+
+- `llama2` - Good balance of speed and accuracy
+- `mistral` - Fast and efficient
+- `mixtral` - More accurate, slower
+- `phi` - Very fast, smaller model
+
+**Docker networking note:** If running the platform in Docker and Ollama on your host machine:
+
+- **macOS/Windows**: Use `http://host.docker.internal:11434/v1`
+- **Linux**: Use `http://172.17.0.1:11434/v1` or add `--network=host` to your Docker run command
+
+#### Using Other Local LLMs (LM Studio, LocalAI)
+
+```bash
+LLM_ENABLED=true
+LLM_API_URL=http://localhost:1234/v1  # LM Studio default port
+LLM_API_TOKEN=not-required
+LLM_MODEL=your-model-name
+```
+
+#### Disabling Moderation (Auto-approve all comments)
+
+```bash
+LLM_ENABLED=false
+# Or simply omit the variables
+```
+
+### How It Works
+
+```
+1. User posts comment
+   ↓
+2. Backend creates comment with status "pending"
+   ↓
+3. Moderation job sent to Redis queue
+   ↓
+4. Worker picks up job and fetches comment
+   ↓
+5. LLM analyzes comment content via Chat Completions API
+   ↓
+6. LLM responds with JSON: {"ok": true/false, "reason": "..."}
+   ↓
+7. Comment status updated:
+   • "published" - Comment approved
+   • "rejected" - Comment denied (reason stored)
+   • "error" - API failure (logged)
+```
+
+### API Integration
+
+The system uses the **OpenAI Chat Completions API format** (`/v1/chat/completions`), making it compatible with:
+
+- **OpenAI** - GPT-3.5, GPT-4, GPT-4 Turbo
+- **Azure OpenAI Service** - Enterprise-grade OpenAI models
+- **Ollama** - Self-hosted open-source LLMs (Llama 2, Mistral, Mixtral, etc.)
+- **LM Studio** - Local LLM inference with OpenAI-compatible API
+- **LocalAI** - Self-hosted OpenAI alternative
+- **Anthropic Claude** - Via OpenAI-compatible proxy
+- **Together AI** - Hosted open-source models
+- **Anyscale Endpoints** - Llama 2, Mistral, and more
+- **Any OpenAI-compatible API endpoint**
+
+> **💡 Tip**: For self-hosting without external API costs, use **Ollama** - it's free, runs locally, and supports many open-source models like Llama 2, Mistral, and Code Llama.
+
+**Request Format:**
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are moderating comments. Respond with JSON..."
+    },
+    {
+      "role": "user",
+      "content": "Comment: [user's comment text]"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Expected Response:**
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "{\"ok\": true}"
+      }
+    }
+  ]
+}
+```
+
+### Fallback Behavior
+
+The moderation system is designed to **never block user experience**:
+
+- **LLM Disabled**: Comments auto-approved immediately
+- **API Unreachable**: Comments auto-approved (error logged)
+- **Invalid Response**: Comments auto-approved (error logged)
+- **Timeout (30s)**: Request fails, comment auto-approved
+
+### Implementation Details
+
+- **Queue**: Redis-based asynchronous processing
+- **Timeout**: 30 seconds per request
+- **Status Tracking**: Comments have states: `pending`, `published`, `rejected`, `error`
+- **Error Handling**: Comprehensive logging for debugging
+- **Privacy**: Only comment text sent to LLM (no user PII)
+
+### Testing Moderation
+
+With moderation enabled, test the system:
+
+```bash
+# Create a test comment (requires authentication)
+curl -X POST http://localhost:8080/api/v1/videos/{VIDEO_ID}/comments \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "This is a test comment",
+    "author_name": "Test User"
+  }'
+
+# Check comment status
+curl http://localhost:8080/api/v1/videos/{VIDEO_ID}/comments
+
+# Monitor worker logs to see moderation in action
+docker-compose logs -f worker1
+```
+
+**Note:** The default system prompt includes a test rule that rejects comments about "bananas" for easy testing.
 
 ## 🧪 Testing
 
@@ -223,16 +458,20 @@ curl http://localhost:8080/api/v1/videos/{VIDEO_ID}
 
 ### Environment Variables
 
-| Variable           | Description               | Default                                                           |
-| ------------------ | ------------------------- | ----------------------------------------------------------------- |
-| `PORT`             | Backend server port       | `8080`                                                            |
-| `MONGODB_URI`      | MongoDB connection string | `mongodb://admin:password@mongodb:27017/youtube?authSource=admin` |
-| `REDIS_URI`        | Redis connection string   | `redis://redis:6379`                                              |
-| `MINIO_ENDPOINT`   | MinIO server endpoint     | `minio:9000`                                                      |
-| `MINIO_ACCESS_KEY` | MinIO access key          | `minioadmin`                                                      |
-| `MINIO_SECRET_KEY` | MinIO secret key          | `minioadmin`                                                      |
-| `FRONTEND_URL`     | Frontend URL for CORS     | `http://localhost:3000`                                           |
-| `WORKER_ID`        | Unique worker identifier  | Auto-generated                                                    |
+| Variable           | Description                     | Default                                                           |
+| ------------------ | ------------------------------- | ----------------------------------------------------------------- |
+| `PORT`             | Backend server port             | `8080`                                                            |
+| `MONGODB_URI`      | MongoDB connection string       | `mongodb://admin:password@mongodb:27017/youtube?authSource=admin` |
+| `REDIS_URI`        | Redis connection string         | `redis://redis:6379`                                              |
+| `MINIO_ENDPOINT`   | MinIO server endpoint           | `minio:9000`                                                      |
+| `MINIO_ACCESS_KEY` | MinIO access key                | `minioadmin`                                                      |
+| `MINIO_SECRET_KEY` | MinIO secret key                | `minioadmin`                                                      |
+| `FRONTEND_URL`     | Frontend URL for CORS           | `http://localhost:3000`                                           |
+| `WORKER_ID`        | Unique worker identifier        | Auto-generated                                                    |
+| `LLM_ENABLED`      | Enable LLM comment moderation   | `false`                                                           |
+| `LLM_API_URL`      | OpenAI-compatible API endpoint  | -                                                                 |
+| `LLM_API_TOKEN`    | LLM API authentication token    | -                                                                 |
+| `LLM_MODEL`        | LLM model identifier (optional) | -                                                                 |
 
 ### Video Processing Settings
 
@@ -345,6 +584,7 @@ docker exec -it youtube_redis redis-cli
 - ✅ File validation and size limits
 - ✅ CORS configuration
 - ✅ Error handling and logging
+- ✅ AI-powered content moderation (optional)
 - 🚧 Authentication system (planned)
 - 🚧 Rate limiting (planned)
 - 🚧 File encryption (planned)
@@ -386,8 +626,9 @@ This project is licensed under the MIT License.
 
 ✅ **Complete video processing pipeline with distributed workers**  
 ✅ **FFmpeg transcoding and thumbnail generation**  
+✅ **AI-powered comment moderation with LLM integration**  
 ✅ **RESTful API with job monitoring**  
 ✅ **Containerized deployment with Docker Compose**  
 🚧 **React frontend ready for implementation**
 
-**Built with ❤️ using Go, FFmpeg, MongoDB, Redis, and MinIO.**
+**Built with ❤️ using Go, FFmpeg, MongoDB, Redis, MinIO, and AI.**
