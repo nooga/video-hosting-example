@@ -1,8 +1,8 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+# Builder stage
+FROM golang:1.22-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk add --no-cache git ca-certificates tzdata build-base
 
 # Set working directory
 WORKDIR /app
@@ -16,14 +16,14 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the worker
+# Build the worker binary (static)
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker .
 
-# Final stage
+# Final runtime stage
 FROM alpine:latest
 
 # Install runtime dependencies including FFmpeg
-RUN apk --no-cache add ca-certificates ffmpeg
+RUN apk --no-cache add ca-certificates ffmpeg tzdata
 
 WORKDIR /root/
 
@@ -31,4 +31,4 @@ WORKDIR /root/
 COPY --from=builder /app/worker .
 
 # Run the worker
-CMD ["./worker"] 
+CMD ["./worker"]

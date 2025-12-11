@@ -1,10 +1,14 @@
-# Build stage
 FROM node:20-alpine AS build
 WORKDIR /app
+
+# Install dependencies
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
+
+# Copy the rest of the source code
 COPY . .
-# Build without specific environment variables - we'll inject them at runtime
+
+# Build production assets
 RUN npm run build
 
 # Production stage: serve with nginx
@@ -41,50 +45,10 @@ EOF
 
 RUN chmod +x /docker-entrypoint.sh
 
-# Create nginx config
-RUN cat <<'EOF' > /etc/nginx/nginx.conf
-worker_processes 1;
-
-error_log  /var/log/nginx/error.log warn;
-pid        /var/run/nginx.pid;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    sendfile        on;
-    keepalive_timeout  65;
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-    
-    server {
-        listen 3000;
-        server_name localhost;
-        root /usr/share/nginx/html;
-        index index.html;
-        
-        # Handle static assets
-        location /static/ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-        
-        # Handle runtime config
-        location /runtime-config.js {
-            expires -1;
-            add_header Cache-Control "no-cache, no-store, must-revalidate";
-        }
-        
-        # Handle React routing
-        location / {
-            try_files $uri $uri/ /index.html;
-        }
-    }
-}
-EOF
-
+# Expose port 3000 for the SPA
 EXPOSE 3000
+
+# Adjust nginx to listen on port 3000 instead of 80
+RUN sed -i 's/listen       80;/listen       3000;/' /etc/nginx/conf.d/default.conf
+
 ENTRYPOINT ["/docker-entrypoint.sh"]

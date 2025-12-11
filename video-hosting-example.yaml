@@ -1,0 +1,555 @@
+namespace: video-hosting-example
+
+auth0:
+  defines: auth0/application
+  domain: <- secret("default-auth0-management-api-url")
+  app-name: "Video Hosting Auth0 App"
+  app_type: spa
+  callback-url: <- $app-domain "/callback" concat-all
+  allowed-logout-urls:
+    - <- $app-domain
+  web-origins:
+    - <- $app-domain
+  allowed-origins:
+    - <- $app-domain
+  management-client-id-secret: default-auth0-management-client-id
+  management-client-token-secret: default-auth0-management-client-secret
+  management-api: <- "https://" secret("default-auth0-management-api-url") concat-all
+  services:
+    data:
+      protocol: custom
+  permitted-secrets:
+    default-auth0-management-client-id: true
+    default-auth0-management-client-secret: true
+    default-auth0-management-api-url: true
+  variables:
+    app-domain:
+      type: string
+      description: Domain of the frontend application using Auth0.
+      value: <- connection-target("frontend") entity-state get-member("url")
+  connections:
+    frontend:
+      target: video-hosting-example/frontend-site
+      service: data
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/frontend-site
+      timeout: 600
+
+auth0-api:
+  defines: auth0/resource-server
+  domain: <- secret("default-auth0-management-api-url")
+  name: "Video Hosting API"
+  audience: <- "https://" connection-domain-name("api") concat-all
+  client-id: <- connection-target("auth0-client") entity-state get-member("client-id")
+  management-client-id-secret: default-auth0-management-client-id
+  management-client-token-secret: default-auth0-management-client-secret
+  # this is important, the linter warning is a mistake, the management-api is not used for this resource server
+  management-api: <- "https://" secret("default-auth0-management-api-url") concat-all
+  services:
+    data:
+      protocol: custom
+  permitted-secrets:
+    default-auth0-management-client-id: true
+    default-auth0-management-client-secret: true
+    default-auth0-management-api-url: true
+  connections:
+    auth0-client:
+      target: video-hosting-example/auth0
+      service: data
+    api:
+      target: video-hosting-example/proxy
+      service: nginx
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/auth0
+      timeout: 600
+
+frontend-site:
+  defines: netlify/site
+  name: monk-video-hosting-example-site
+  force_ssl: false
+  secret_ref: default-netlify-pat
+  permitted-secrets:
+    default-netlify-pat: true
+  services:
+    data:
+      protocol: custom
+
+moderator:
+  defines: digitalocean-agent/agent
+  name: moderator
+  instruction: "You moderate comments on a video hosting platform. You are given a comment and you need to moderate it. You need to check if the comment is offensive, spam, or other inappropriate content. If it is, you need to flag it as inappropriate. If it is not, you need to approve it. You need to return the moderation result in a JSON format."
+  model_id: "OpenAI GPT-oss-20b"
+  project_id: ""
+  tags:
+    - video-hosting-example
+  region: tor1 # this is the only region that supports the model we are using
+  publish: true
+  checks:
+    readiness:
+      period: 15
+      attempts: 10
+      initialDelay: 5
+  services:
+    data:
+      protocol: custom
+
+redis:
+  defines: digitalocean-database/database
+  name: video-hosting-example-redis
+  engine: valkey
+  num_nodes: 1
+  region: nyc3
+  size: db-s-1vcpu-2gb
+  tags:
+    - environment:production
+    - application:cache
+  db_config:
+    redis_maxmemory_policy: "allkeys-lru"
+  services:
+    redis-svc:
+      protocol: custom
+  checks:
+    readiness:
+      period: 30
+      initialDelay: 2
+      attempts: 30
+
+spaces-keys:
+  defines: digitalocean-spaces/spaces-keys
+  permitted-secrets:
+    do-spaces-access-key: true
+    do-spaces-secret-key: true
+  services:
+    data:
+      protocol: custom
+
+spaces:
+  defines: digitalocean-spaces/spaces-bucket
+  bucket_name: video-hosting-example-spaces
+  region: nyc3
+  versioning: false
+  public_read_access: true
+  public_write_access: false
+  services:
+    bucket:
+      protocol: custom
+  permitted-secrets:
+    do-spaces-access-key: true
+    do-spaces-secret-key: true
+
+mongodb-database:
+  defines: digitalocean-database/database
+  name: video-hosting-example-mongodb
+  engine: mongodb
+  version: "7.0"
+  num_nodes: 1
+  region: nyc3
+  size: db-s-4vcpu-8gb
+  tags:
+    - environment:production
+    - application:document-store
+  services:
+    data:
+      protocol: custom
+  checks:
+    readiness:
+      period: 30
+      initialDelay: 2
+      attempts: 30
+
+backend:
+  defines: runnable
+  containers:
+    main:
+      image: "backend:latest"
+  services:
+    http:
+      description: HTTP API service for frontend and worker communication.
+      protocol: tcp
+      port: 8080
+      publish: true
+      host-port: 8080
+      container: main
+  connections:
+    mongodb:
+      target: video-hosting-example/mongodb-database
+      service: data
+    redis:
+      target: video-hosting-example/redis
+      service: redis-svc
+    spaces:
+      target: video-hosting-example/spaces
+      service: bucket
+    frontend:
+      target: video-hosting-example/frontend-site
+      service: data
+    moderator:
+      target: video-hosting-example/moderator
+      service: data
+    auth0-app:
+      target: video-hosting-example/auth0
+      service: data
+    auth0-api:
+      target: video-hosting-example/auth0-api
+      service: data
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/mongodb-database
+        - video-hosting-example/redis
+        - video-hosting-example/spaces
+        - video-hosting-example/moderator
+        - video-hosting-example/auth0
+      timeout: 600
+  permitted-secrets:
+    do-spaces-access-key: true
+    do-spaces-secret-key: true
+    default-auth0-management-api-url: true
+  variables:
+    port:
+      type: int
+      env: PORT
+      description: Port for the backend HTTP server to listen on.
+      value: 8080
+    mongodb-uri:
+      type: string
+      env: MONGODB_URI
+      description: MongoDB connection URI for database access.
+      value: <- connection-target("mongodb") entity-state get-member("connection_uri")
+    redis-uri:
+      type: string
+      env: REDIS_URI
+      description: Redis connection URI for job queue and caching.
+      value: <- connection-target("redis") entity-state get-member("connection_uri")
+    minio-endpoint:
+      type: string
+      env: MINIO_ENDPOINT
+      description: MinIO (DO Spaces S3-compatible) endpoint.
+      value: <- connection-target("spaces") entity-state get-member("endpoint")
+    minio-access-key:
+      type: string
+      env: MINIO_ACCESS_KEY
+      description: Access key for Spaces object storage.
+      value: <- secret("do-spaces-access-key")
+    minio-secret-key:
+      type: string
+      env: MINIO_SECRET_KEY
+      description: Secret key for Spaces object storage.
+      value: <- secret("do-spaces-secret-key")
+    minio-use-ssl:
+      type: bool
+      env: MINIO_USE_SSL
+      description: Whether to use SSL for object storage connection.
+      value: true
+    minio-bucket-name:
+      type: string
+      env: MINIO_BUCKET_NAME
+      description: Bucket name in object storage.
+      value: <- connection-target("spaces") entity-state get-member("bucket_name")
+    frontend-url:
+      type: string
+      env: FRONTEND_URL
+      description: URL of the frontend application for CORS and redirects.
+      value: <- connection-target("frontend") entity-state get-member("url")
+    jwt-secret:
+      type: string
+      env: JWT_SECRET
+      description: Secret key for signing JWT tokens.
+      value: change-me-jwt-secret
+    cors-origins:
+      type: string
+      env: CORS_ORIGINS
+      description: Allowed origins for CORS.
+      value: <- connection-target("frontend") entity-state get-member("url")
+    log-level:
+      type: string
+      env: LOG_LEVEL
+      description: Logging level for the backend application.
+      value: info
+    node-env:
+      type: string
+      env: NODE_ENV
+      description: Node environment (for compatibility, not used by Go).
+      value: production
+    go-env:
+      type: string
+      env: GO_ENV
+      description: Go environment (development/production).
+      value: production
+    auth0-domain:
+      type: string
+      env: AUTH0_DOMAIN
+      description: Auth0 domain for authentication.
+      value: <- connection-target("auth0-app") entity-state get-member("issuer")
+    auth0-audience:
+      type: string
+      env: AUTH0_AUDIENCE
+      description: Auth0 audience for authentication.
+      value: <- connection-target("auth0-api") entity-state get-member("audience")
+    moderation-enabled:
+      type: bool
+      env: LLM_ENABLED
+      description: Whether LLM moderation is enabled.
+      value: true
+    moderation-api-url:
+      type: string
+      env: LLM_API_URL
+      description: URL of the moderation API (DigitalOcean Agent endpoint).
+      value: <- connection-target("moderator") entity-state get-member("endpoint")
+    moderation-api-token:
+      type: string
+      env: LLM_API_TOKEN
+      description: API token for the moderation API.
+      value: <- connection-target("moderator") entity-state get-member("endpoint_api_key")
+    moderation-model:
+      type: string
+      env: LLM_MODEL
+      description: Model ID for the moderation API.
+      value: <- connection-target("moderator") entity-state get-member("model_id")
+
+worker:
+  defines: runnable
+  containers:
+    main:
+      image: "worker:latest"
+  services: {}
+  connections:
+    spaces:
+      target: video-hosting-example/spaces
+      service: bucket
+    mongodb:
+      target: video-hosting-example/mongodb-database
+      service: data
+    redis:
+      target: video-hosting-example/redis
+      service: redis-svc
+    moderator:
+      target: video-hosting-example/moderator
+      service: data
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/mongodb-database
+        - video-hosting-example/redis
+        - video-hosting-example/spaces
+        - video-hosting-example/moderator
+      timeout: 600
+  permitted-secrets:
+    do-spaces-access-key: true
+    do-spaces-secret-key: true
+  variables:
+    worker-id:
+      type: string
+      env: WORKER_ID
+      description: Unique identifier for the worker instance.
+      value: worker-1
+    mongodb-uri:
+      type: string
+      env: MONGODB_URI
+      description: MongoDB connection URI for database access.
+      value: <- connection-target("mongodb") entity-state get-member("connection_uri")
+    redis-uri:
+      type: string
+      env: REDIS_URI
+      description: Redis connection URI for job queue and caching.
+      value: <- connection-target("redis") entity-state get-member("connection_uri")
+    minio-endpoint:
+      type: string
+      env: MINIO_ENDPOINT
+      description: MinIO (DO Spaces S3-compatible) endpoint.
+      value: <- connection-target("spaces") entity-state get-member("endpoint")
+    minio-access-key:
+      type: string
+      env: MINIO_ACCESS_KEY
+      description: Access key for Spaces object storage.
+      value: <- secret("do-spaces-access-key")
+    minio-secret-key:
+      type: string
+      env: MINIO_SECRET_KEY
+      description: Secret key for Spaces object storage.
+      value: <- secret("do-spaces-secret-key")
+    minio-use-ssl:
+      type: bool
+      env: MINIO_USE_SSL
+      description: Whether to use SSL for object storage connection.
+      value: true
+    minio-bucket-name:
+      type: string
+      env: MINIO_BUCKET_NAME
+      description: Bucket name in object storage for storing videos.
+      value: <- connection-target("spaces") entity-state get-member("bucket_name")
+    worker-count:
+      type: int
+      env: WORKER_COUNT
+      description: Number of worker instances to run.
+      value: 2
+    worker-concurrency:
+      type: int
+      env: WORKER_CONCURRENCY
+      description: Number of concurrent jobs a worker can process.
+      value: 2
+    max-file-size:
+      type: string
+      env: MAX_FILE_SIZE
+      description: Maximum allowed file size for uploads.
+      value: 1GB
+    supported-formats:
+      type: string
+      env: SUPPORTED_FORMATS
+      description: Comma-separated list of supported video formats.
+      value: "mp4,avi,mov,wmv,flv,webm"
+    output-formats:
+      type: string
+      env: OUTPUT_FORMATS
+      description: Comma-separated list of output video resolutions.
+      value: "480p,720p,1080p"
+    log-level:
+      type: string
+      env: LOG_LEVEL
+      description: Logging level for the worker application.
+      value: info
+    node-env:
+      type: string
+      env: NODE_ENV
+      description: Node environment for the worker.
+      value: production
+    go-env:
+      type: string
+      env: GO_ENV
+      description: Go environment (development/production).
+      value: production
+    moderation-enabled:
+      type: bool
+      env: LLM_ENABLED
+      description: Whether LLM moderation is enabled.
+      value: true
+    moderation-api-url:
+      type: string
+      env: LLM_API_URL
+      description: URL of the moderation API.
+      value: <- connection-target("moderator") entity-state get-member("endpoint")
+    moderation-api-token:
+      type: string
+      env: LLM_API_TOKEN
+      description: API token for the moderation API.
+      value: <- connection-target("moderator") entity-state get-member("endpoint_api_key")
+    moderation-model:
+      type: string
+      env: LLM_MODEL
+      description: Model ID for the moderation API.
+      value: <- connection-target("moderator") entity-state get-member("model_id")
+
+proxy:
+  defines: runnable
+  inherits: nginx/node-proxy
+  connections:
+    backend:
+      target: video-hosting-example/backend
+      service: http
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/backend
+      timeout: 600
+
+frontend:
+  defines: runnable
+  inherits: netlify/deploy
+  containers:
+    deploy:
+      paths:
+        - "blobs://frontend:/home/node/app"
+  connections:
+    site:
+      target: video-hosting-example/frontend-site
+      service: data
+    backend-api:
+      target: video-hosting-example/proxy
+      service: nginx
+    auth0-client:
+      target: video-hosting-example/auth0
+      service: data
+    auth0-api:
+      target: video-hosting-example/auth0-api
+      service: data
+  depends:
+    wait-for:
+      runnables:
+        - video-hosting-example/frontend-site
+        - video-hosting-example/proxy
+        - video-hosting-example/auth0
+        - video-hosting-example/auth0-api
+      timeout: 600
+  permitted-secrets:
+    default-auth0-management-api-url: true
+  variables:
+    # ignore linter warnings
+    node-version:
+      type: string
+      value: "22"
+    # ignore linter warnings
+    deploy-dir:
+      type: string
+      value: build
+    # ignore linter warnings
+    site-id:
+      type: string
+      value: <- connection-target("site") entity-state get-member("id")
+    pre-deploy:
+      type: string
+      value: |
+        echo "Installing dependencies..."
+        rm -rf node_modules
+        npm install
+        npm run build
+        echo '/* /index.html 200' >> build/_redirects
+    react-app-api-url:
+      type: string
+      env: REACT_APP_API_URL
+      description: URL of the backend API for the frontend to communicate with.
+      value: <- "https://" connection-domain-name("backend-api") concat-all
+    react-app-minio-url:
+      type: string
+      env: REACT_APP_MINIO_URL
+      description: Public URL base for accessing video assets in Spaces.
+      value: ""
+    node-env:
+      type: string
+      env: NODE_ENV
+      description: Node environment for the frontend build.
+      value: production
+    auth0-domain:
+      type: string
+      env: REACT_APP_AUTH0_DOMAIN
+      description: Auth0 domain for authentication.
+      value: <- connection-target("auth0-client") entity-state get-member("issuer")
+    auth0-audience:
+      type: string
+      env: REACT_APP_AUTH0_AUDIENCE
+      description: Auth0 audience for authentication.
+      value: <- connection-target("auth0-api") entity-state get-member("audience")
+    auth0-client-id:
+      type: string
+      env: REACT_APP_AUTH0_CLIENT_ID
+      description: Auth0 client ID for authentication.
+      value: <- connection-target("auth0-client") entity-state get-member("client-id")
+
+stack:
+  defines: group
+  members:
+    - video-hosting-example/backend
+    - video-hosting-example/worker
+    - video-hosting-example/mongodb-database
+    - video-hosting-example/redis
+    - video-hosting-example/spaces-keys
+    - video-hosting-example/spaces
+    - video-hosting-example/moderator
+    - video-hosting-example/proxy
+    - video-hosting-example/frontend-site
+    - video-hosting-example/frontend
+    - video-hosting-example/auth0
+    - video-hosting-example/auth0-api
