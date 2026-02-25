@@ -32,9 +32,9 @@ const HomePage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-950">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-gray-900 shadow-lg shadow-black/20 border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
@@ -44,13 +44,13 @@ const HomePage: React.FC = () => {
             {/* Search Bar */}
             <div className="flex-1 max-w-lg mx-8">
               <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
                 <input
                   type="text"
                   placeholder="Search videos..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-500 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -100,7 +100,7 @@ const HomePage: React.FC = () => {
         {showUpload && !isAuthenticated && (
           <div className="mb-8">
             <div className="card p-6">
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-gray-400">
                 Please sign in to upload videos.
               </p>
             </div>
@@ -110,7 +110,7 @@ const HomePage: React.FC = () => {
         {/* Video Grid */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-gray-100">
               {searchQuery
                 ? `Search Results (${filteredVideos.length})`
                 : "All Videos"}
@@ -125,8 +125,8 @@ const HomePage: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-700">Error loading videos: {error}</p>
+            <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-md">
+              <p className="text-red-400">Error loading videos: {error}</p>
             </div>
           )}
 
@@ -134,7 +134,7 @@ const HomePage: React.FC = () => {
             <div className="text-center py-12">
               <div className="max-w-md mx-auto">
                 <svg
-                  className="mx-auto h-12 w-12 text-gray-400"
+                  className="mx-auto h-12 w-12 text-gray-600"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -146,7 +146,7 @@ const HomePage: React.FC = () => {
                     d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                   />
                 </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                <h3 className="mt-2 text-sm font-medium text-gray-300">
                   No videos found
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
@@ -196,7 +196,7 @@ const HomePage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-12">
+      <footer className="bg-gray-900 border-t border-gray-800 mt-12">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="text-center text-gray-500 text-sm">
             <p>&copy; 2025 MonkOS Inc. Powered by Go, React, and FFmpeg.</p>

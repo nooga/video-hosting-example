@@ -27,7 +27,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
       </div>
       {showText && (
         <div className="flex justify-between items-center mt-1">
-          <span className="text-xs text-gray-600">
+          <span className="text-xs text-gray-400">
             {Math.round(clampedProgress)}%
           </span>
         </div>

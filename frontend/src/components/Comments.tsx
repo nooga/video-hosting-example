@@ -71,11 +71,11 @@ const Comments: React.FC<CommentsProps> = ({
 
   return (
     <div className="card p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Comments</h3>
+      <h3 className="text-lg font-semibold text-gray-100 mb-4">Comments</h3>
 
       <form onSubmit={handleSubmit} className="mb-4">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+          <div className="h-10 w-10 rounded-full bg-gray-800 flex-shrink-0 overflow-hidden border border-gray-700">
             {user?.picture ? (
               <img
                 src={user.picture}
@@ -109,7 +109,7 @@ const Comments: React.FC<CommentsProps> = ({
               }}
               rows={1}
               placeholder="Add a comment..."
-              className="w-full resize-none min-h-10 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full resize-none min-h-10 p-3 bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
             {(focused || text.trim()) && (
               <div className="mt-2 flex justify-end gap-2">
@@ -153,9 +153,9 @@ const Comments: React.FC<CommentsProps> = ({
           <p className="text-sm text-gray-500">No comments yet.</p>
         ) : (
           comments.map((c) => (
-            <div key={c.id} className="border border-gray-200 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                <div className="h-6 w-6 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+            <div key={c.id} className="border border-gray-700 rounded-lg p-3 bg-gray-800/50">
+              <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
+                <div className="h-6 w-6 rounded-full bg-gray-700 overflow-hidden flex-shrink-0">
                   {c.avatar ? (
                     <img
                       src={c.avatar}
@@ -164,16 +164,16 @@ const Comments: React.FC<CommentsProps> = ({
                     />
                   ) : null}
                 </div>
-                <span className="font-medium text-gray-900">{c.author}</span>
+                <span className="font-medium text-gray-200">{c.author}</span>
                 <span className="mx-1">•</span>
                 <span>{new Date(c.createdAt).toLocaleString()}</span>
                 {c.status === "pending" && (
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-900/60 text-yellow-300 border border-yellow-700/50">
                     Pending moderation
                   </span>
                 )}
               </div>
-              <p className="text-gray-800 whitespace-pre-wrap">{c.content}</p>
+              <p className="text-gray-300 whitespace-pre-wrap">{c.content}</p>
             </div>
           ))
         )}

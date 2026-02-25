@@ -27,13 +27,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
   const getStatusColor = (status: string): string => {
     switch (status) {
       case "ready":
-        return "bg-green-100 text-green-800";
+        return "bg-green-900/60 text-green-300 border border-green-700/50";
       case "processing":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-yellow-900/60 text-yellow-300 border border-yellow-700/50";
       case "failed":
-        return "bg-red-100 text-red-800";
+        return "bg-red-900/60 text-red-300 border border-red-700/50";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-800 text-gray-400 border border-gray-700";
     }
   };
 
@@ -48,7 +48,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
     <div className="video-card cursor-pointer" onClick={() => onClick?.(video)}>
       {/* Thumbnail */}
       <div
-        className="relative w-full bg-gray-200"
+        className="relative w-full bg-gray-800"
         style={{ aspectRatio: "16/9" }}
       >
         {getThumbnailUrl() && !imageError ? (
@@ -80,23 +80,23 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
             <div
               className={`w-16 h-16 rounded-full mb-2 mx-auto flex items-center justify-center ${
                 video.status === "ready"
-                  ? "bg-green-100"
+                  ? "bg-green-900/40"
                   : video.status === "processing"
-                  ? "bg-yellow-100"
+                  ? "bg-yellow-900/40"
                   : video.status === "failed"
-                  ? "bg-red-100"
-                  : "bg-gray-100"
+                  ? "bg-red-900/40"
+                  : "bg-gray-800"
               }`}
             >
               <PlayIcon
                 className={`h-8 w-8 ${
                   video.status === "ready"
-                    ? "text-green-600"
+                    ? "text-green-400"
                     : video.status === "processing"
-                    ? "text-yellow-600"
+                    ? "text-yellow-400"
                     : video.status === "failed"
-                    ? "text-red-600"
-                    : "text-gray-600"
+                    ? "text-red-400"
+                    : "text-gray-500"
                 }`}
               />
             </div>
@@ -137,12 +137,12 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
 
       {/* Video Info */}
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+        <h3 className="text-lg font-semibold text-gray-100 mb-2 line-clamp-2">
           {video.title}
         </h3>
 
         {video.description && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+          <p className="text-sm text-gray-400 mb-3 line-clamp-2">
             {video.description}
           </p>
         )}
@@ -152,7 +152,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick }) => {
           <span>{formatFileSize(video.size)}</span>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-gray-400 mt-1">
+        <div className="flex items-center justify-between text-xs text-gray-600 mt-1">
           <span>{new Date(video.created_at).toLocaleDateString()}</span>
           {video.formats && video.formats.length > 0 && (
             <span>{video.formats.length} quality options</span>

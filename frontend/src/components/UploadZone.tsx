@@ -1,7 +1,8 @@
-import React, { useState, useRef, DragEvent } from 'react';
+import React, { useState, useRef, DragEvent, useEffect } from 'react';
 import { CloudArrowUpIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import { useUpload } from '../hooks/useUpload';
 import ProgressBar from './ProgressBar';
+import confetti from 'canvas-confetti';
 
 interface UploadZoneProps {
   onUploadComplete?: (videoId: string) => void;
@@ -20,6 +21,49 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
     resetUpload,
     validateFile,
   } = useUpload();
+
+  // Fire confetti when upload succeeds
+  useEffect(() => {
+    if (uploadState.success) {
+      // Initial big burst
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#a855f7', '#c084fc', '#e9d5ff', '#7e22ce', '#22d3ee', '#f472b6', '#facc15'],
+      });
+
+      // Secondary bursts from the sides
+      setTimeout(() => {
+        confetti({
+          particleCount: 60,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0, y: 0.65 },
+          colors: ['#a855f7', '#c084fc', '#22d3ee', '#facc15'],
+        });
+        confetti({
+          particleCount: 60,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1, y: 0.65 },
+          colors: ['#a855f7', '#c084fc', '#f472b6', '#facc15'],
+        });
+      }, 250);
+
+      // Final sparkle burst
+      setTimeout(() => {
+        confetti({
+          particleCount: 80,
+          spread: 100,
+          origin: { y: 0.5 },
+          colors: ['#a855f7', '#e9d5ff', '#22d3ee', '#f472b6'],
+          ticks: 200,
+          gravity: 0.8,
+        });
+      }, 500);
+    }
+  }, [uploadState.success]);
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -74,12 +118,12 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
 
   if (uploadState.success) {
     return (
-      <div className="card p-6 text-center">
-        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-          <VideoCameraIcon className="h-6 w-6 text-green-600" />
+      <div className="card p-6 text-center celebrate-entrance">
+        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-900/40 border border-green-700/50 mb-4">
+          <VideoCameraIcon className="h-6 w-6 text-green-400" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Upload Successful!</h3>
-        <p className="text-sm text-gray-500 mb-4">
+        <h3 className="text-lg font-medium text-gray-100 mb-2">Upload Successful!</h3>
+        <p className="text-sm text-gray-400 mb-4">
           Your video has been uploaded and is being processed.
         </p>
         <button
@@ -94,7 +138,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
 
   return (
     <div className="card p-6">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload Video</h2>
+      <h2 className="text-2xl font-bold text-gray-100 mb-6">Upload Video</h2>
       
       {!uploadState.file ? (
         <div
@@ -111,24 +155,24 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
             onChange={handleFileInputChange}
             className="hidden"
           />
-          <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <p className="text-lg font-medium text-gray-900 mb-2">
+          <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-500 mb-4" />
+          <p className="text-lg font-medium text-gray-200 mb-2">
             Drag and drop your video here
           </p>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-400 mb-4">
             or click to select a file
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-600">
             Supports MP4, AVI, MOV, WMV, WebM (max 1GB)
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {/* File Info */}
-          <div className="flex items-center p-4 bg-gray-50 rounded-lg">
-            <VideoCameraIcon className="h-8 w-8 text-gray-400 mr-3" />
+          <div className="flex items-center p-4 bg-gray-800 rounded-lg border border-gray-700">
+            <VideoCameraIcon className="h-8 w-8 text-gray-500 mr-3" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-gray-200">
                 {uploadState.file.name}
               </p>
               <p className="text-xs text-gray-500">
@@ -137,7 +181,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
             </div>
             <button
               onClick={() => setFile(null)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-500 hover:text-gray-300 transition-colors"
               disabled={uploadState.isUploading}
             >
               ×
@@ -147,7 +191,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
           {/* Video Details Form */}
           <div className="space-y-4">
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1">
                 Title *
               </label>
               <input
@@ -156,13 +200,13 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
                 value={uploadState.title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter video title"
-                className="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+                className="w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500 shadow-sm focus:border-purple-500 focus:ring-purple-500"
                 disabled={uploadState.isUploading}
               />
             </div>
 
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">
                 Description
               </label>
               <textarea
@@ -171,7 +215,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
                 value={uploadState.description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Enter video description (optional)"
-                className="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+                className="w-full rounded-md bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500 shadow-sm focus:border-purple-500 focus:ring-purple-500"
                 disabled={uploadState.isUploading}
               />
             </div>
@@ -181,12 +225,12 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
           {uploadState.isUploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-700">Uploading...</span>
-                <span className="text-gray-500">{uploadState.progress.percentage}%</span>
+                <span className="text-gray-300">Uploading...</span>
+                <span className="text-gray-400">{uploadState.progress.percentage}%</span>
               </div>
               <ProgressBar 
                 progress={uploadState.progress.percentage} 
-                color="bg-red-500"
+                color="bg-purple-500"
               />
               <p className="text-xs text-gray-500">
                 {formatFileSize(uploadState.progress.loaded)} of {formatFileSize(uploadState.progress.total)}
@@ -196,8 +240,8 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
 
           {/* Error Message */}
           {uploadState.error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-700">{uploadState.error}</p>
+            <div className="p-3 bg-red-900/30 border border-red-800 rounded-md">
+              <p className="text-sm text-red-400">{uploadState.error}</p>
             </div>
           )}
 
@@ -215,4 +259,4 @@ const UploadZone: React.FC<UploadZoneProps> = ({ onUploadComplete }) => {
   );
 };
 
-export default UploadZone; 
+export default UploadZone;

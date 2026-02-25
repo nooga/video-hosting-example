@@ -18,11 +18,11 @@ const VideoCardCompact: React.FC<VideoCardCompactProps> = ({
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-lg overflow-hidden cursor-pointer hover:shadow transition"
+      className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden cursor-pointer hover:border-gray-700 hover:shadow-lg hover:shadow-purple-500/10 transition-all"
       onClick={() => onClick?.(video)}
     >
       <div
-        className="relative w-full bg-gray-200"
+        className="relative w-full bg-gray-800"
         style={{ aspectRatio: "16/9" }}
       >
         <img

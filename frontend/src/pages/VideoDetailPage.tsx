@@ -61,17 +61,17 @@ const VideoDetailPage: React.FC = () => {
 
   if (videoLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-950">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="animate-pulse">
-            <div className="aspect-w-16 aspect-h-9 bg-gray-300 rounded-lg mb-6"></div>
-            <div className="h-8 bg-gray-300 rounded w-3/4 mb-4"></div>
-            <div className="h-4 bg-gray-300 rounded w-1/4 mb-6"></div>
+            <div className="aspect-w-16 aspect-h-9 bg-gray-800 rounded-lg mb-6"></div>
+            <div className="h-8 bg-gray-800 rounded w-3/4 mb-4"></div>
+            <div className="h-4 bg-gray-800 rounded w-1/4 mb-6"></div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
-                <div className="h-32 bg-gray-300 rounded"></div>
+                <div className="h-32 bg-gray-800 rounded"></div>
               </div>
-              <div className="h-64 bg-gray-300 rounded"></div>
+              <div className="h-64 bg-gray-800 rounded"></div>
             </div>
           </div>
         </div>
@@ -81,12 +81,12 @@ const VideoDetailPage: React.FC = () => {
 
   if (videoError || !video) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <h2 className="text-2xl font-bold text-gray-100 mb-4">
             Video Not Found
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-400 mb-6">
             {videoError || "The video you're looking for doesn't exist."}
           </p>
           <Link to="/" className="btn-primary">
@@ -99,14 +99,14 @@ const VideoDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-950">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-gray-900 shadow-lg shadow-black/20 border-b border-gray-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link
               to="/"
-              className="flex items-center text-gray-600 hover:text-gray-900"
+              className="flex items-center text-gray-400 hover:text-gray-100 transition-colors"
             >
               <ArrowLeftIcon className="h-5 w-5 mr-2" />
               Back to Videos
@@ -130,10 +130,10 @@ const VideoDetailPage: React.FC = () => {
             <div className="card p-6">
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h1 className="text-2xl font-bold text-gray-100 mb-2">
                     {video.title}
                   </h1>
-                  <div className="flex items-center flex-wrap gap-2 text-sm text-gray-600">
+                  <div className="flex items-center flex-wrap gap-2 text-sm text-gray-400">
                     <span className="mr-2">By {video.uploaded_by}</span>
                     <span>•</span>
                     <span>
@@ -153,7 +153,7 @@ const VideoDetailPage: React.FC = () => {
                           {video.formats.map((format, index) => (
                             <span
                               key={index}
-                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700"
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-800 text-gray-300 border border-gray-700"
                               title={formatFileSize(format.size)}
                             >
                               {format.quality}
@@ -182,7 +182,7 @@ const VideoDetailPage: React.FC = () => {
               {/* Description */}
               {video.description && (
                 <div>
-                  <p className="text-gray-700 whitespace-pre-wrap">
+                  <p className="text-gray-300 whitespace-pre-wrap">
                     {video.description}
                   </p>
                 </div>
@@ -195,7 +195,7 @@ const VideoDetailPage: React.FC = () => {
           <div className="lg:w-80 flex-shrink-0">
             {getJobStatus() === "completed" ? (
               <div className="space-y-4">
-                <h3 className="text-base font-semibold text-gray-900">
+                <h3 className="text-base font-semibold text-gray-100">
                   More videos
                 </h3>
                 <div className="grid grid-cols-1 gap-3">
@@ -206,10 +206,10 @@ const VideoDetailPage: React.FC = () => {
                       <Link
                         key={v.id}
                         to={`/videos/${v.id}`}
-                        className="block bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow transition"
+                        className="block bg-gray-900 border border-gray-800 rounded-lg overflow-hidden hover:border-gray-700 hover:shadow-lg hover:shadow-purple-500/10 transition-all"
                       >
                         <div
-                          className="relative w-full bg-gray-200"
+                          className="relative w-full bg-gray-800"
                           style={{ aspectRatio: "16/9" }}
                         >
                           <img

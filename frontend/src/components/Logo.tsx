@@ -79,7 +79,7 @@ const Logo: React.FC<LogoProps> = ({
         </g>
       </svg>
       {showWordmark && (
-        <span className="ml-2 font-bold tracking-tight text-gray-900">
+        <span className="ml-2 font-bold tracking-tight text-gray-100">
           {wordmarkText}
         </span>
       )}
