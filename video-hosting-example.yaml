@@ -2,7 +2,7 @@ namespace: video-hosting-example
 
 video-hosting-moderation-agent:
   defines: digitalocean-agent/agent
-  name: <- `video-hosting-moderation-agent-${environment}`
+  name: <- `vhe-moderation-agent-${environment}`
   # DigitalOcean GenAI platform is not available in all regions; keep data services in nyc3,
   # but run the agent in a supported GenAI region.
   region: tor1
@@ -47,7 +47,7 @@ auth0:
     data:
       protocol: custom
   domain: <- secret("default-auth0-management-api-url")
-  app-name: <-`Video Hosting Auth0 App ${environment}`
+  app-name: <- `Video Hosting Auth0 App ${environment}`
   app_type: spa
   callback-url: <- $app-domain
   allowed-logout-urls:
@@ -118,7 +118,7 @@ frontend-site:
   defines: netlify/site
   # Netlify site names must be globally unique.
   # This example uses a stable name so it does not change between deploys.
-  name: vhe-example-789
+  name: <- `vhe-${environment}`
   force_ssl: false
   secret_ref: default-netlify-pat
   permitted-secrets:
@@ -129,7 +129,7 @@ frontend-site:
 
 redis:
   defines: digitalocean-database/database
-  name: <- `video-hosting-example-redis-${environment}`
+  name: <- `vhe-redis-${environment}`
   engine: valkey
   num_nodes: 1
   region: nyc3
@@ -182,7 +182,7 @@ spaces:
 
 mongodb-database:
   defines: digitalocean-database/database
-  name: <- `video-hosting-example-mongodb-${environment}`
+  name: <- `vhe-mongodb-${environment}`
   engine: mongodb
   version: "7.0"
   num_nodes: 1
