@@ -1,5 +1,6 @@
 # 🎬 Video Processing & Sharing Platform
 
+
 A complete YouTube-like video processing and sharing platform built with modern technologies, featuring **parallel video processing workers**, **FFmpeg transcoding**, **thumbnail generation**, and containerized deployment.
 
 ## 🏗️ Architecture
