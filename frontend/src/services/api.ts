@@ -15,6 +15,9 @@ declare global {
     ENV?: {
       REACT_APP_API_URL?: string;
       REACT_APP_MINIO_URL?: string;
+       REACT_APP_AUTH0_DOMAIN?: string;
+       REACT_APP_AUTH0_AUDIENCE?: string;
+       REACT_APP_AUTH0_CLIENT_ID?: string;
     };
   }
 }
@@ -172,13 +175,13 @@ export class VideoAPI {
     return `${API_BASE_URL}/api/v1/videos/${videoId}/stream?quality=${quality}`;
   }
 
-  // Get thumbnail URL
+  // Get thumbnail URL — objects are stored at bucket root (e.g. "{videoId}_thumb.jpg")
   static getThumbnailUrl(thumbnailPath: string): string {
-    // Use MinIO URL if available, otherwise use backend API
     const currentConfig = getConfig();
     const minioUrl =
       currentConfig.minioUrl || `${API_BASE_URL.replace(":8080", ":9000")}`;
-    return `${minioUrl}/thumbnails/${thumbnailPath}`;
+    const path = thumbnailPath.replace(/^\/+/, "");
+    return `${minioUrl.replace(/\/+$/, "")}/${path}`;
   }
 
   // Get thumbnail URL via backend API (fallback)

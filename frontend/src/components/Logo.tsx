@@ -11,7 +11,7 @@ const Logo: React.FC<LogoProps> = ({
   size = 28,
   className = "",
   showWordmark = false,
-  wordmarkText = "VideoTube",
+  wordmarkText = "VideoHost",
 }) => {
   const gradientId = useMemo(
     () => `vhGradient-${Math.random().toString(36).slice(2, 8)}`,
@@ -19,7 +19,7 @@ const Logo: React.FC<LogoProps> = ({
   );
 
   return (
-    <span className={`inline-flex items-center ${className}`}>
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <svg
         width={size}
         height={size}
@@ -27,59 +27,30 @@ const Logo: React.FC<LogoProps> = ({
         xmlns="http://www.w3.org/2000/svg"
         role="img"
         aria-label={wordmarkText}
+        className="flex-shrink-0"
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#7C3AED" />
-            <stop offset="50%" stopColor="#EC4899" />
-            <stop offset="100%" stopColor="#F97316" />
+            <stop offset="0%" stopColor="#ff6b4a" />
+            <stop offset="100%" stopColor="#ff9a6c" />
           </linearGradient>
-          <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
-            <feOffset dy="1" result="offsetBlur" />
-            <feMerge>
-              <feMergeNode in="offsetBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
-
-        {/* Colorful orb */}
-        <circle
-          cx="32"
-          cy="32"
-          r="24"
+        <rect
+          x="4"
+          y="4"
+          width="56"
+          height="56"
+          rx="16"
           fill={`url(#${gradientId})`}
-          filter="url(#softShadow)"
         />
-
-        {/* Play triangle */}
-        <path d="M27 22 L44 32 L27 42 Z" fill="#FFFFFF" opacity="0.95" />
-
-        {/* Sparkle */}
-        <g transform="translate(46 14) rotate(15)">
-          <rect
-            x="-1.5"
-            y="-5"
-            width="3"
-            height="10"
-            rx="1.5"
-            fill="#FFFFFF"
-            opacity="0.9"
-          />
-          <rect
-            x="-5"
-            y="-1.5"
-            width="10"
-            height="3"
-            rx="1.5"
-            fill="#FFFFFF"
-            opacity="0.9"
-          />
-        </g>
+        <path
+          d="M26 20 L46 32 L26 44 Z"
+          fill="#0c0f14"
+          opacity="0.92"
+        />
       </svg>
       {showWordmark && (
-        <span className="ml-2 font-bold tracking-tight text-gray-900">
+        <span className="font-display font-bold text-lg tracking-tight text-ink">
           {wordmarkText}
         </span>
       )}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { VideoAPI } from "../services/api";
+import { auth0ProfileName, displayCommentAuthor } from "../utils/displayName";
 
 interface CommentItem {
   id: string;
@@ -33,15 +34,15 @@ const Comments: React.FC<CommentsProps> = ({
         setComments(
           res.comments.map((c) => ({
             id: c.id,
-            author: c.author_name || c.author_id,
+            author: displayCommentAuthor(c),
             avatar: c.author_avatar,
             content: c.content,
             createdAt: c.created_at,
             status: c.status,
           }))
         );
-      } catch (e) {
-        // ignore for now
+      } catch {
+        // ignore
       }
     };
     load();
@@ -49,14 +50,18 @@ const Comments: React.FC<CommentsProps> = ({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!text.trim()) return;
-    if (!videoId) return;
+    if (!text.trim() || !videoId) return;
     try {
-      const created = await VideoAPI.createComment(videoId, text.trim());
+      const profileName = auth0ProfileName(user);
+      const created = await VideoAPI.createComment(
+        videoId,
+        text.trim(),
+        profileName,
+        user?.picture
+      );
       const newComment: CommentItem = {
         id: created.id,
-        author:
-          created.author_name || user?.name || user?.email || created.author_id,
+        author: created.author_name?.trim() || profileName || "Unknown user",
         avatar: created.author_avatar || user?.picture,
         content: created.content,
         createdAt: created.created_at,
@@ -64,25 +69,34 @@ const Comments: React.FC<CommentsProps> = ({
       };
       setComments([newComment, ...comments]);
       setText("");
-    } catch (err) {
-      // ignore for now or show toast
+    } catch {
+      // ignore
     }
   };
 
   return (
-    <div className="card p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Comments</h3>
+    <div className="card-glass p-6">
+      <h3 className="font-display font-semibold text-lg text-ink mb-5">
+        Comments
+        {comments.length > 0 && (
+          <span className="ml-2 text-sm font-normal text-ink-faint">
+            {comments.length}
+          </span>
+        )}
+      </h3>
 
-      <form onSubmit={handleSubmit} className="mb-4">
+      <form onSubmit={handleSubmit} className="mb-6">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+          <div className="h-10 w-10 rounded-full bg-surface-overlay ring-2 ring-white/10 flex-shrink-0 overflow-hidden">
             {user?.picture ? (
               <img
                 src={user.picture}
-                alt="avatar"
-                className="h-10 w-10 object-cover"
+                alt=""
+                className="h-full w-full object-cover"
               />
-            ) : null}
+            ) : (
+              <div className="h-full w-full bg-accent-muted" />
+            )}
           </div>
           <div className="flex-1">
             <textarea
@@ -93,26 +107,23 @@ const Comments: React.FC<CommentsProps> = ({
               }}
               onChange={(e) => setText(e.target.value)}
               onInput={(e) => {
-                const ta = e.currentTarget as HTMLTextAreaElement;
+                const ta = e.currentTarget;
                 ta.style.height = "auto";
                 ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  if (isAuthenticated) {
-                    handleSubmit();
-                  } else {
-                    loginWithRedirect();
-                  }
+                  if (isAuthenticated) handleSubmit();
+                  else loginWithRedirect();
                 }
               }}
               rows={1}
-              placeholder="Add a comment..."
-              className="w-full resize-none min-h-10 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+              placeholder="Add a comment…"
+              className="input-field resize-none min-h-[44px] rounded-2xl"
             />
             {(focused || text.trim()) && (
-              <div className="mt-2 flex justify-end gap-2">
+              <div className="mt-3 flex justify-end gap-2">
                 {!isAuthenticated ? (
                   <button
                     type="button"
@@ -138,7 +149,7 @@ const Comments: React.FC<CommentsProps> = ({
                       className="btn-primary"
                       disabled={!text.trim()}
                     >
-                      Comment
+                      Post
                     </button>
                   </>
                 )}
@@ -150,30 +161,36 @@ const Comments: React.FC<CommentsProps> = ({
 
       <div className="space-y-4">
         {comments.length === 0 ? (
-          <p className="text-sm text-gray-500">No comments yet.</p>
+          <p className="text-sm text-ink-faint py-4 text-center">
+            No comments yet — start the conversation.
+          </p>
         ) : (
           comments.map((c) => (
-            <div key={c.id} className="border border-gray-200 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                <div className="h-6 w-6 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                  {c.avatar ? (
-                    <img
-                      src={c.avatar}
-                      alt="avatar"
-                      className="h-6 w-6 object-cover"
-                    />
-                  ) : null}
-                </div>
-                <span className="font-medium text-gray-900">{c.author}</span>
-                <span className="mx-1">•</span>
-                <span>{new Date(c.createdAt).toLocaleString()}</span>
-                {c.status === "pending" && (
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800">
-                    Pending moderation
-                  </span>
+            <div
+              key={c.id}
+              className="flex gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.05]"
+            >
+              <div className="h-8 w-8 rounded-full bg-surface-overlay ring-1 ring-white/10 flex-shrink-0 overflow-hidden">
+                {c.avatar ? (
+                  <img src={c.avatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full bg-accent-muted" />
                 )}
               </div>
-              <p className="text-gray-800 whitespace-pre-wrap">{c.content}</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm mb-1">
+                  <span className="font-semibold text-ink">{c.author}</span>
+                  <span className="text-ink-faint">
+                    {new Date(c.createdAt).toLocaleString()}
+                  </span>
+                  {c.status === "pending" && (
+                    <span className="badge-processing">Pending</span>
+                  )}
+                </div>
+                <p className="text-ink-muted whitespace-pre-wrap text-sm leading-relaxed">
+                  {c.content}
+                </p>
+              </div>
             </div>
           ))
         )}

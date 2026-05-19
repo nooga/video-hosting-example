@@ -19,6 +19,7 @@ RUN apk add --no-cache gettext
 
 # Copy the built app
 COPY --from=build /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Create a startup script that will generate runtime config
 RUN cat <<'EOF' > /docker-entrypoint.sh
@@ -27,12 +28,18 @@ RUN cat <<'EOF' > /docker-entrypoint.sh
 # Default values
 REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8080}
 REACT_APP_MINIO_URL=${REACT_APP_MINIO_URL:-http://localhost:9000}
+REACT_APP_AUTH0_DOMAIN=${REACT_APP_AUTH0_DOMAIN:-}
+REACT_APP_AUTH0_AUDIENCE=${REACT_APP_AUTH0_AUDIENCE:-}
+REACT_APP_AUTH0_CLIENT_ID=${REACT_APP_AUTH0_CLIENT_ID:-}
 
 # Generate runtime config file
 cat <<CONFIG_EOF > /usr/share/nginx/html/runtime-config.js
 window.ENV = {
   REACT_APP_API_URL: '$REACT_APP_API_URL',
-  REACT_APP_MINIO_URL: '$REACT_APP_MINIO_URL'
+  REACT_APP_MINIO_URL: '$REACT_APP_MINIO_URL',
+  REACT_APP_AUTH0_DOMAIN: '$REACT_APP_AUTH0_DOMAIN',
+  REACT_APP_AUTH0_AUDIENCE: '$REACT_APP_AUTH0_AUDIENCE',
+  REACT_APP_AUTH0_CLIENT_ID: '$REACT_APP_AUTH0_CLIENT_ID'
 };
 CONFIG_EOF
 
@@ -47,8 +54,5 @@ RUN chmod +x /docker-entrypoint.sh
 
 # Expose port 3000 for the SPA
 EXPOSE 3000
-
-# Adjust nginx to listen on port 3000 instead of 80
-RUN sed -i 's/listen       80;/listen       3000;/' /etc/nginx/conf.d/default.conf
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

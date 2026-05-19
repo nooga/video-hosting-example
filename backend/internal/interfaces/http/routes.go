@@ -39,7 +39,7 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 	// Initialize handlers
 	videoHandler := handlers.NewVideoHandler(videoService, minio, userRepo, logger)
 	jobHandler := handlers.NewJobHandler(processingService, logger)
-	commentHandler := handlers.NewCommentHandler(commentService, jobPublisher, cfg.Moderation, logger)
+	commentHandler := handlers.NewCommentHandler(commentService, userRepo, jobPublisher, cfg.Moderation, logger)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {

@@ -1,34 +1,36 @@
 # Builder stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata build-base
-
-# Set working directory
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
 
-# Download dependencies
+# Cache dependencies first
+COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy source code
 COPY . .
 
-# Build the worker binary (static)
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker .
+# Build a small static binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags="-s -w" -o /app/worker .
 
-# Final runtime stage
+# Runtime stage
 FROM alpine:latest
 
-# Install runtime dependencies including FFmpeg
-RUN apk --no-cache add ca-certificates ffmpeg tzdata
+# FFmpeg is required by the worker at runtime
+RUN apk add --no-cache ca-certificates ffmpeg tzdata \
+    && addgroup -S app \
+    && adduser -S -G app -h /app app \
+    && mkdir -p /app /tmp/video-processing \
+    && chown -R app:app /app /tmp/video-processing
 
-WORKDIR /root/
+WORKDIR /app
 
-# Copy the binary from builder stage
-COPY --from=builder /app/worker .
+COPY --from=builder /app/worker /app/worker
 
-# Run the worker
-CMD ["./worker"]
+USER app
+
+ENTRYPOINT ["/app/worker"]

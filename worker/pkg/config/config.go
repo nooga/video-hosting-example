@@ -3,6 +3,8 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -42,7 +44,7 @@ func Load() *Config {
 			Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
 			AccessKey:  getEnv("MINIO_ACCESS_KEY", "minioadmin"),
 			SecretKey:  getEnv("MINIO_SECRET_KEY", "minioadmin"),
-			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
+			UseSSL:     getBoolEnv("MINIO_USE_SSL", false),
 			BucketName: getEnv("MINIO_BUCKET_NAME", "videos"),
 		},
 		// LLM-powered comment moderation (optional)
@@ -63,7 +65,26 @@ func Load() *Config {
 
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
-		return value
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
 	}
+	return defaultValue
+}
+
+func getBoolEnv(key string, defaultValue bool) bool {
+	if value, exists := os.LookupEnv(key); exists {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return defaultValue
+		}
+
+		parsed, err := strconv.ParseBool(value)
+		if err == nil {
+			return parsed
+		}
+	}
+
 	return defaultValue
 }

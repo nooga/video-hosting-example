@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"youtube-backend/internal/domain/entities"
+	"youtube-backend/internal/domain/repositories"
 	"youtube-backend/internal/domain/services"
 	"youtube-backend/internal/infrastructure/queue"
 	mw "youtube-backend/internal/interfaces/middleware"
@@ -19,6 +20,7 @@ import (
 
 type CommentHandler struct {
 	service      *services.CommentService
+	userRepo     repositories.UserRepository
 	jobPublisher *queue.JobPublisher
 	moderation   config.ModerationConfig
 	logger       *zap.Logger
@@ -49,8 +51,8 @@ type CommentListResponse struct {
 	Limit    int               `json:"limit"`
 }
 
-func NewCommentHandler(service *services.CommentService, jobPublisher *queue.JobPublisher, moderation config.ModerationConfig, logger *zap.Logger) *CommentHandler {
-	return &CommentHandler{service: service, jobPublisher: jobPublisher, moderation: moderation, logger: logger}
+func NewCommentHandler(service *services.CommentService, userRepo repositories.UserRepository, jobPublisher *queue.JobPublisher, moderation config.ModerationConfig, logger *zap.Logger) *CommentHandler {
+	return &CommentHandler{service: service, userRepo: userRepo, jobPublisher: jobPublisher, moderation: moderation, logger: logger}
 }
 
 func (h *CommentHandler) Create(c *gin.Context) {
@@ -82,10 +84,12 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		return
 	}
 
-	authorName := mw.GetAuthName(c)
+	authorName := mw.GetAuthDisplayName(c)
 	authorAvatar := mw.GetAuthPicture(c)
-	if authorName == "" {
-		authorName = req.AuthorName
+	if req.AuthorName != "" && (authorName == "" || mw.IsOpaqueDisplayName(authorName)) {
+		if !mw.IsOpaqueDisplayName(req.AuthorName) {
+			authorName = req.AuthorName
+		}
 	}
 	if authorAvatar == "" {
 		authorAvatar = req.AuthorAvatar
@@ -145,12 +149,26 @@ func (h *CommentHandler) List(c *gin.Context) {
 }
 
 func (h *CommentHandler) toResponse(cmt *entities.Comment) CommentResponse {
+	authorName := cmt.AuthorName
+	authorAvatar := cmt.AuthorAvatar
+	if mw.IsOpaqueDisplayName(authorName) {
+		authorName = ""
+	}
+	if authorName == "" && !cmt.AuthorID.IsZero() {
+		if u, err := h.userRepo.GetByID(context.Background(), cmt.AuthorID); err == nil && u != nil {
+			authorName = mw.UserDisplayName(u)
+			if authorAvatar == "" {
+				authorAvatar = u.Avatar
+			}
+		}
+	}
+
 	return CommentResponse{
 		ID:           cmt.ID.Hex(),
 		VideoID:      cmt.VideoID.Hex(),
 		AuthorID:     cmt.AuthorID.Hex(),
-		AuthorName:   cmt.AuthorName,
-		AuthorAvatar: cmt.AuthorAvatar,
+		AuthorName:   authorName,
+		AuthorAvatar: authorAvatar,
 		Content:      cmt.Content,
 		Status:       cmt.Status,
 		Reason:       cmt.Reason,

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"youtube-backend/internal/domain/entities"
@@ -90,11 +91,15 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 	if sub := mw.GetAuthSubject(c); sub != "" {
 		uploadedBy = sub
 	}
-	uploaderName := mw.GetAuthName(c)
+	uploaderName := mw.GetAuthDisplayName(c)
 	uploaderAvatar := mw.GetAuthPicture(c)
-	// Fallback to provided form fields (frontend may supply profile data)
-	if uploaderName == "" {
-		uploaderName = c.PostForm("uploader_name")
+	// Prefer frontend profile when JWT / synced user only yields an opaque provider id.
+	if formName := strings.TrimSpace(c.PostForm("uploader_name")); formName != "" {
+		if uploaderName == "" || mw.IsOpaqueDisplayName(uploaderName) {
+			if !mw.IsOpaqueDisplayName(formName) {
+				uploaderName = formName
+			}
+		}
 	}
 	if uploaderAvatar == "" {
 		uploaderAvatar = c.PostForm("uploader_avatar")
@@ -386,20 +391,27 @@ func (h *VideoHandler) convertToVideoResponse(video *entities.Video) VideoRespon
 		}
 	}
 
-	// Hydrate uploader name/avatar for legacy records if missing
+	// Hydrate uploader name/avatar for legacy records if missing or opaque
 	uploaderName := video.UploaderName
 	uploaderAvatar := video.UploaderAvatar
+	if mw.IsOpaqueDisplayName(uploaderName) {
+		uploaderName = ""
+	}
 	if uploaderName == "" {
 		if !video.UploaderUserID.IsZero() {
 			if u, err := h.userRepo.GetByID(context.Background(), video.UploaderUserID); err == nil && u != nil {
-				uploaderName = u.Name
-				uploaderAvatar = u.Avatar
+				uploaderName = mw.UserDisplayName(u)
+				if uploaderAvatar == "" {
+					uploaderAvatar = u.Avatar
+				}
 			}
 		}
 		if uploaderName == "" && video.UploadedBy != "" {
 			if u, err := h.userRepo.GetBySubject(context.Background(), video.UploadedBy); err == nil && u != nil {
-				uploaderName = u.Name
-				uploaderAvatar = u.Avatar
+				uploaderName = mw.UserDisplayName(u)
+				if uploaderAvatar == "" {
+					uploaderAvatar = u.Avatar
+				}
 			}
 		}
 	}

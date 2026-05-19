@@ -1,6 +1,7 @@
 import React from "react";
 import { Video } from "../types/video";
 import { VideoAPI } from "../services/api";
+import { displayUploaderName } from "../utils/displayName";
 
 interface VideoCardCompactProps {
   video: Video;
@@ -31,7 +32,7 @@ const VideoCardCompact: React.FC<VideoCardCompactProps> = ({
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-x-0 top-0 p-2 bg-gradient-to-b from-black/60 to-transparent text-white">
-          <div className="text-xs opacity-90">By {video.uploaded_by}</div>
+          <div className="text-xs opacity-90">By {displayUploaderName(video)}</div>
           <div className="text-sm font-semibold line-clamp-1">
             {video.title}
           </div>

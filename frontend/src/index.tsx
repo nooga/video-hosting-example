@@ -8,9 +8,20 @@ const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
 
-const domain = process.env.REACT_APP_AUTH0_DOMAIN || "";
-const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID || "";
-const audience = process.env.REACT_APP_AUTH0_AUDIENCE || "";
+const runtimeConfig = window.ENV || {};
+
+const domain =
+  runtimeConfig.REACT_APP_AUTH0_DOMAIN ||
+  process.env.REACT_APP_AUTH0_DOMAIN ||
+  "";
+const clientId =
+  runtimeConfig.REACT_APP_AUTH0_CLIENT_ID ||
+  process.env.REACT_APP_AUTH0_CLIENT_ID ||
+  "";
+const audience =
+  runtimeConfig.REACT_APP_AUTH0_AUDIENCE ||
+  process.env.REACT_APP_AUTH0_AUDIENCE ||
+  "";
 
 root.render(
   <React.StrictMode>
@@ -20,6 +31,7 @@ root.render(
       authorizationParams={{
         redirect_uri: window.location.origin,
         audience,
+        scope: "openid profile email",
       }}
       cacheLocation="localstorage"
       useRefreshTokens={true}

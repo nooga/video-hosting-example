@@ -44,7 +44,7 @@ export const useUpload = () => {
     });
   }, []);
 
-  const uploadVideo = useCallback(async () => {
+  const uploadVideo = useCallback(async (uploaderName?: string, uploaderAvatar?: string) => {
     if (!uploadState.file || !uploadState.title.trim()) {
       setUploadState(prev => ({
         ...prev,
@@ -72,8 +72,10 @@ export const useUpload = () => {
         uploadState.file,
         uploadState.title,
         uploadState.description,
-        'user', // TODO: Replace with actual user ID
-        onProgress
+        "user",
+        onProgress,
+        uploaderName,
+        uploaderAvatar
       );
 
       setUploadState(prev => ({

@@ -56,6 +56,18 @@ func SyncUserMiddleware(userRepo repositories.UserRepository) gin.HandlerFunc {
 			username = sub[i+1:]
 		}
 
+		if name == "" && username != "" && username != "user" && !IsOpaqueDisplayName(username) {
+			name = username
+		}
+		if IsOpaqueDisplayName(name) {
+			name = ""
+		}
+		if name == "" && email != "" {
+			if local := emailLocalPart(email); local != "" && !IsOpaqueDisplayName(local) {
+				name = local
+			}
+		}
+
 		if existing == nil {
 			// Create new user
 			user := entities.NewUser(sub, username, email, name, picture)
@@ -64,9 +76,20 @@ func SyncUserMiddleware(userRepo repositories.UserRepository) gin.HandlerFunc {
 		} else {
 			// Update changed fields
 			updated := false
-			if name != "" && name != existing.Name {
+			if name != "" && !IsOpaqueDisplayName(name) && name != existing.Name {
 				existing.Name = name
 				updated = true
+			} else if existing.Name == "" && username != "" && username != "user" && !IsOpaqueDisplayName(username) {
+				existing.Name = username
+				updated = true
+			} else if IsOpaqueDisplayName(existing.Name) && name != "" && !IsOpaqueDisplayName(name) {
+				existing.Name = name
+				updated = true
+			} else if IsOpaqueDisplayName(existing.Name) && email != "" {
+				if local := emailLocalPart(email); local != "" && !IsOpaqueDisplayName(local) {
+					existing.Name = local
+					updated = true
+				}
 			}
 			if email != "" && email != existing.Email {
 				existing.Email = email

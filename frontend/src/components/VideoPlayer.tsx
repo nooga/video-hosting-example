@@ -26,9 +26,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(
-    null
-  );
+  const [controlsTimeout, setControlsTimeout] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const {
     currentQuality,
@@ -52,26 +52,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     toggleFullscreen,
   } = useVideoPlayer(video);
 
-  // Video event handlers
   useEffect(() => {
     const videoElement = videoRef.current;
     if (!videoElement) return;
 
-    const handleLoadedMetadata = () => {
-      setDuration(videoElement.duration);
-    };
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(videoElement.currentTime);
-    };
-
-    const handlePlay = () => {
-      setIsPlaying(true);
-    };
-
-    const handlePause = () => {
-      setIsPlaying(false);
-    };
+    const handleLoadedMetadata = () => setDuration(videoElement.duration);
+    const handleTimeUpdate = () => setCurrentTime(videoElement.currentTime);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
 
     videoElement.addEventListener("loadedmetadata", handleLoadedMetadata);
     videoElement.addEventListener("timeupdate", handleTimeUpdate);
@@ -86,80 +74,61 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [setDuration, setCurrentTime, setIsPlaying]);
 
-  // Handle play/pause
   useEffect(() => {
     const videoElement = videoRef.current;
     if (!videoElement) return;
-
-    if (isPlaying) {
-      videoElement.play();
-    } else {
-      videoElement.pause();
-    }
+    if (isPlaying) videoElement.play();
+    else videoElement.pause();
   }, [isPlaying]);
 
-  // Handle volume changes
   useEffect(() => {
     const videoElement = videoRef.current;
     if (!videoElement) return;
-
     videoElement.volume = volume;
     videoElement.muted = muted;
   }, [volume, muted]);
 
-  // Handle fullscreen
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
     if (fullscreen) {
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      }
-    } else {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      }
+      container.requestFullscreen?.();
+    } else if (document.fullscreenElement === container) {
+      document.exitFullscreen?.();
     }
   }, [fullscreen]);
 
-  // Auto-hide controls
-  const resetControlsTimeout = () => {
-    if (controlsTimeout) {
-      clearTimeout(controlsTimeout);
-    }
-    setShowControls(true);
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const isFs = document.fullscreenElement === containerRef.current;
+      setFullscreen(isFs);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, [setFullscreen]);
 
+  const resetControlsTimeout = () => {
+    if (controlsTimeout) clearTimeout(controlsTimeout);
+    setShowControls(true);
     if (isPlaying) {
-      const timeout = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+      const timeout = setTimeout(() => setShowControls(false), 3000);
       setControlsTimeout(timeout);
     }
   };
 
-  // Show controls when paused
   useEffect(() => {
     if (!isPlaying) {
       setShowControls(true);
-      if (controlsTimeout) {
-        clearTimeout(controlsTimeout);
-      }
+      if (controlsTimeout) clearTimeout(controlsTimeout);
     }
   }, [isPlaying, controlsTimeout]);
-
-  const handleMouseMove = () => {
-    resetControlsTimeout();
-  };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const videoElement = videoRef.current;
     if (!videoElement || !duration) return;
-
     const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const newTime = (clickX / rect.width) * duration;
-
+    const newTime = ((e.clientX - rect.left) / rect.width) * duration;
     videoElement.currentTime = newTime;
     setCurrentTime(newTime);
   };
@@ -170,18 +139,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const progressPct = duration ? (currentTime / duration) * 100 : 0;
   const qualities = getAvailableQualities();
 
   return (
     <div
       ref={containerRef}
       className={`video-player ${className}`}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => {
-        if (isPlaying) {
-          resetControlsTimeout();
-        }
-      }}
+      onMouseMove={resetControlsTimeout}
+      onMouseLeave={() => isPlaying && resetControlsTimeout()}
     >
       <video
         ref={videoRef}
@@ -192,34 +158,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onDoubleClick={toggleFullscreen}
       />
 
-      {/* Controls Overlay */}
       <div
         className={`video-controls transition-opacity duration-300 ${
-          showControls ? "opacity-100" : "opacity-0"
+          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Progress Bar */}
-        <div className="mb-4">
+        <div className="player-scrub mb-4" onClick={handleSeek}>
           <div
-            className="w-full h-1 bg-white/30 rounded cursor-pointer"
-            onClick={handleSeek}
-          >
-            <div
-              className="h-full bg-red-500 rounded"
-              style={{
-                width: `${duration ? (currentTime / duration) * 100 : 0}%`,
-              }}
-            />
-          </div>
+            className="player-scrub-fill"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
 
-        {/* Control Buttons */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            {/* Play/Pause */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
+              type="button"
               onClick={togglePlay}
-              className="text-white hover:text-gray-300 transition-colors"
+              className="player-control-btn"
+              aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
                 <PauseIcon className="h-6 w-6" />
@@ -228,11 +186,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
               )}
             </button>
 
-            {/* Volume */}
-            <div className="flex items-center space-x-2">
+            <div className="hidden sm:flex items-center gap-2">
               <button
+                type="button"
                 onClick={toggleMute}
-                className="text-white hover:text-gray-300 transition-colors"
+                className="player-control-btn"
+                aria-label={muted ? "Unmute" : "Mute"}
               >
                 {muted || volume === 0 ? (
                   <SpeakerXMarkIcon className="h-5 w-5" />
@@ -244,44 +203,45 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 type="range"
                 min="0"
                 max="1"
-                step="0.1"
+                step="0.05"
                 value={muted ? 0 : volume}
                 onChange={(e) => {
-                  const newVolume = parseFloat(e.target.value);
-                  setVolume(newVolume);
-                  setMuted(newVolume === 0);
+                  const v = parseFloat(e.target.value);
+                  setVolume(v);
+                  setMuted(v === 0);
                 }}
-                className="w-20 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer"
+                className="player-volume"
+                aria-label="Volume"
               />
             </div>
 
-            {/* Time */}
-            <span className="text-white text-sm">
+            <span className="text-white/80 text-xs sm:text-sm font-medium tabular-nums ml-1">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
 
-          <div className="flex items-center space-x-2 sm:space-x-4">
-            {/* Quality Selector */}
-            <div className="relative flex items-center">
+          <div className="flex items-center gap-1">
+            <div className="relative">
               <button
+                type="button"
                 onClick={() => setShowQualityMenu(!showQualityMenu)}
-                aria-label="Change quality"
-                className="text-white hover:text-gray-300 transition-colors p-2 rounded focus:outline-none focus:ring-2 focus:ring-white/40"
+                className="player-control-btn"
+                aria-label="Quality"
+                aria-expanded={showQualityMenu}
               >
                 <Cog6ToothIcon className="h-5 w-5" />
               </button>
-
-              {showQualityMenu && (
-                <div className="absolute bottom-10 right-0 bg-black/90 rounded-md py-2 min-w-24 shadow-lg ring-1 ring-white/10 z-30">
+              {showQualityMenu && qualities.length > 0 && (
+                <div className="quality-menu">
                   {qualities.map((quality) => (
                     <button
                       key={quality}
+                      type="button"
                       onClick={() => {
                         setCurrentQuality(quality);
                         setShowQualityMenu(false);
                       }}
-                      className={`quality-button block w-full text-left px-3 py-1 ${
+                      className={`quality-button ${
                         quality === currentQuality ? "active" : ""
                       }`}
                     >
@@ -292,10 +252,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
               )}
             </div>
 
-            {/* Fullscreen */}
             <button
+              type="button"
               onClick={toggleFullscreen}
-              className="text-white hover:text-gray-300 transition-colors"
+              className="player-control-btn"
+              aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
               {fullscreen ? (
                 <ArrowsPointingInIcon className="h-5 w-5" />
@@ -307,28 +268,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       </div>
 
-      {/* Loading/Error States */}
       {video.status === "processing" &&
         (!video.formats || video.formats.length === 0) && (
-          <div className="absolute inset-0 z-20 grid place-items-center bg-black/50 p-6">
-            <div className="text-center text-white">
+          <div className="absolute inset-0 z-20 grid place-items-center bg-black/60 backdrop-blur-sm p-6">
+            <div className="text-center text-white max-w-xs">
               <div className="relative h-12 w-12 mx-auto mb-4">
-                <div className="absolute inset-0 rounded-full border-4 border-white/20"></div>
-                <div className="absolute inset-0 rounded-full border-4 border-white border-t-transparent animate-spin"></div>
+                <div className="absolute inset-0 rounded-full border-2 border-white/20" />
+                <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin" />
               </div>
-              <h3 className="text-lg font-medium mb-1">Processing Video…</h3>
-              <p className="text-sm text-gray-200 loading-pulse">
-                Your video is being transcoded and will be ready shortly.
+              <h3 className="font-display font-semibold text-lg mb-1">
+                Processing…
+              </h3>
+              <p className="text-sm text-white/70 loading-pulse">
+                Transcoding in progress. Check back shortly.
               </p>
             </div>
           </div>
         )}
 
       {video.status === "failed" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-          <div className="text-center text-white">
-            <p>Failed to process video</p>
-          </div>
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <p className="text-red-400 font-medium">Failed to process video</p>
         </div>
       )}
     </div>
