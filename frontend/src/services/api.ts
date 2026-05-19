@@ -172,7 +172,35 @@ export class VideoAPI {
     videoId: string,
     quality: string = "original"
   ): string {
-    return `${API_BASE_URL}/api/v1/videos/${videoId}/stream?quality=${quality}`;
+    return `${API_BASE_URL}/api/v1/videos/${videoId}/stream?quality=${encodeURIComponent(quality)}`;
+  }
+
+  static getVideoDownloadUrl(
+    videoId: string,
+    quality: string = "original"
+  ): string {
+    return `${this.getVideoStreamUrl(videoId, quality)}&download=1`;
+  }
+
+  /** Best processed quality available, or original. */
+  static pickBestDownloadQuality(video: Video): string {
+    const preference = ["1080p", "720p", "480p"];
+    for (const quality of preference) {
+      if (video.formats?.some((f) => f.quality === quality)) {
+        return quality;
+      }
+    }
+    return "original";
+  }
+
+  /** Start a background download without leaving the page (cross-origin safe). */
+  static triggerVideoDownload(videoId: string, quality: string = "original"): void {
+    const url = this.getVideoDownloadUrl(videoId, quality);
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    window.setTimeout(() => iframe.remove(), 120_000);
   }
 
   // Get thumbnail URL — objects are stored at bucket root (e.g. "{videoId}_thumb.jpg")

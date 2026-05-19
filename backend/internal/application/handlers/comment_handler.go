@@ -99,8 +99,6 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// Set denormalized subject for filtering pending on list
-	comment.AuthorSubject = authSub
 
 	// Always enqueue moderation job; worker decides whether to moderate or pass-through
 	if err := h.jobPublisher.PublishCommentModeration(ctx, comment.ID, objID); err != nil {

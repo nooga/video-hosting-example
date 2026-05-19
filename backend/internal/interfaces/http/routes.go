@@ -83,8 +83,16 @@ func SetupRoutes(router *gin.Engine, db *database.MongoDB, redis *queue.RedisCli
 		// Comment routes (attach under videos/:id to avoid wildcard conflicts)
 		comments := v1.Group("/videos/:id/comments")
 		{
-			// List is public, but includes pending for the author if authenticated
-			comments.GET("", commentHandler.List)
+			// List is public, but includes the author's non-published comments when authenticated
+			if cfg.Auth0.Domain != "" && cfg.Auth0.Audience != "" {
+				comments.GET("",
+					middleware.OptionalAuth0Middleware(cfg.Auth0.Domain, cfg.Auth0.Audience),
+					middleware.SyncUserMiddleware(userRepo),
+					commentHandler.List,
+				)
+			} else {
+				comments.GET("", commentHandler.List)
+			}
 			// Create requires auth
 			if cfg.Auth0.Domain != "" && cfg.Auth0.Audience != "" {
 				comments.POST("",

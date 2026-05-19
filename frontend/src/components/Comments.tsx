@@ -10,6 +10,7 @@ interface CommentItem {
   content: string;
   createdAt: string;
   status?: string;
+  reason?: string;
 }
 
 interface CommentsProps {
@@ -26,27 +27,36 @@ const Comments: React.FC<CommentsProps> = ({
   const [focused, setFocused] = useState(false);
   const { isAuthenticated, loginWithRedirect, user } = useAuth0();
 
+  const mapComments = (items: Awaited<ReturnType<typeof VideoAPI.listComments>>["comments"]) =>
+    items.map((c) => ({
+      id: c.id,
+      author: displayCommentAuthor(c),
+      avatar: c.author_avatar,
+      content: c.content,
+      createdAt: c.created_at,
+      status: c.status,
+      reason: c.reason,
+    }));
+
+  const loadComments = async () => {
+    if (!videoId) return;
+    try {
+      const res = await VideoAPI.listComments(videoId, 1, 50);
+      setComments(mapComments(res.comments));
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      if (!videoId) return;
-      try {
-        const res = await VideoAPI.listComments(videoId, 1, 50);
-        setComments(
-          res.comments.map((c) => ({
-            id: c.id,
-            author: displayCommentAuthor(c),
-            avatar: c.author_avatar,
-            content: c.content,
-            createdAt: c.created_at,
-            status: c.status,
-          }))
-        );
-      } catch {
-        // ignore
-      }
-    };
-    load();
-  }, [videoId]);
+    loadComments();
+  }, [videoId, isAuthenticated]);
+
+  useEffect(() => {
+    if (!videoId || !comments.some((c) => c.status === "pending")) return;
+    const interval = window.setInterval(loadComments, 3000);
+    return () => window.clearInterval(interval);
+  }, [videoId, comments]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -186,10 +196,22 @@ const Comments: React.FC<CommentsProps> = ({
                   {c.status === "pending" && (
                     <span className="badge-processing">Pending</span>
                   )}
+                  {c.status === "rejected" && (
+                    <span className="badge-failed">Rejected</span>
+                  )}
+                  {c.status === "error" && (
+                    <span className="badge-failed">Moderation error</span>
+                  )}
                 </div>
                 <p className="text-ink-muted whitespace-pre-wrap text-sm leading-relaxed">
                   {c.content}
                 </p>
+                {c.status === "rejected" && c.reason && (
+                  <p className="text-xs text-red-400/90 mt-2">{c.reason}</p>
+                )}
+                {c.status === "error" && c.reason && (
+                  <p className="text-xs text-ink-faint mt-2">{c.reason}</p>
+                )}
               </div>
             </div>
           ))

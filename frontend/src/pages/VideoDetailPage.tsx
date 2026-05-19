@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeftIcon,
@@ -18,6 +18,15 @@ const VideoDetailPage: React.FC = () => {
   const { video, loading: videoLoading, error: videoError } = useVideo(videoId);
   const { jobs, loading: jobsLoading, getJobStatus } = useJobs(videoId);
   const { videos: allVideos } = useVideoList();
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = () => {
+    if (!video || downloading) return;
+    setDownloading(true);
+    const quality = VideoAPI.pickBestDownloadQuality(video);
+    VideoAPI.triggerVideoDownload(video.id, quality);
+    window.setTimeout(() => setDownloading(false), 1500);
+  };
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return "0 Bytes";
@@ -154,14 +163,15 @@ const VideoDetailPage: React.FC = () => {
                     <ShareIcon className="h-4 w-4" />
                   </button>
                   {video.status === "ready" && (
-                    <a
-                      href={`/api/v1/videos/${video.id}/stream`}
-                      download
-                      className="btn-secondary p-2.5"
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      disabled={downloading}
+                      className="btn-secondary p-2.5 disabled:opacity-60"
                       aria-label="Download"
                     >
                       <ArrowDownTrayIcon className="h-4 w-4" />
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>

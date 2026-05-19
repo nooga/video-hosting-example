@@ -1,27 +1,14 @@
 package processor
 
-// ModerationProcessor handles LLM-powered comment moderation
-// Compatible with any OpenAI-compatible API including:
-// - OpenAI (https://api.openai.com/v1)
-// - Ollama for self-hosting (http://localhost:11434/v1) - free, runs locally
-// - Azure OpenAI, LM Studio, LocalAI, and other providers
-//
-// Configure via environment variables:
-// - LLM_ENABLED=true
-// - LLM_API_URL=<your-api-endpoint>
-// - LLM_API_TOKEN=<your-api-token> (not required for Ollama)
-// - LLM_MODEL=<model-name> (optional)
-
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"youtube-worker/internal/queue"
 	"youtube-worker/pkg/config"
@@ -39,13 +26,12 @@ func NewModerationProcessor(mongoClient *queue.MongoClient, logger *zap.Logger, 
 	return &ModerationProcessor{mongoClient: mongoClient, logger: logger, cfg: cfg}
 }
 
-// ModerateComment calls an OpenAI-compatible moderation endpoint and updates the comment status
 func (mp *ModerationProcessor) ModerateComment(ctx context.Context, commentID string) error {
-	// If moderation disabled or not configured, approve immediately
 	if !mp.cfg.Enabled || mp.cfg.APIURL == "" || mp.cfg.APIToken == "" {
+		mp.logger.Info("moderation disabled or not configured, auto-publishing comment", zap.String("comment_id", commentID))
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "published", "")
 	}
-	// Fetch comment content
+
 	commentDoc, err := mp.mongoClient.GetComment(ctx, commentID)
 	if err != nil {
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", fmt.Sprintf("comment fetch failed: %v", err))
@@ -59,85 +45,158 @@ func (mp *ModerationProcessor) ModerateComment(ctx context.Context, commentID st
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "comment content empty")
 	}
 
-	// Build chat completions request for the external agent
-	systemPrompt := "You are moderating comments. You will be given a comment text and your task is to either accept it by responding {\\\"ok\\\": true} or reject it giving a reason {\\\"ok\\\": false, \\\\\\\"reason\\\\\\\": \\\\\\\"contains hateful speech\\\\\\\"}. Always respond in only JSON and nothing else. For testing purposes you should reject any comment talking about bananas, you dont like bananas."
-	req := map[string]interface{}{
+	systemPrompt := `You moderate comments for a video hosting platform.
+Return strict JSON only: {"ok": true|false, "category": "...", "reason": "...", "confidence": 0.0-1.0}
+Set ok to true only when the comment is safe to publish. No markdown or extra text.`
+
+	reqBody := map[string]interface{}{
 		"messages": []map[string]string{
 			{"role": "system", "content": systemPrompt},
-			{"role": "user", "content": fmt.Sprintf("Comment: %s", content)},
+			{"role": "user", "content": content},
 		},
-		"stream":                  false,
-		"include_functions_info":  false,
-		"include_retrieval_info":  false,
-		"include_guardrails_info": false,
+		"stream": false,
 	}
-	body, _ := json.Marshal(req)
+	if mp.cfg.Model != "" {
+		reqBody["model"] = mp.cfg.Model
+	}
 
-	base := strings.TrimRight(mp.cfg.APIURL, "/")
-	url := base
-	if !strings.HasSuffix(base, "/api/v1/chat/completions") {
-		url = base + "/api/v1/chat/completions"
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "failed to encode moderation request")
 	}
+
+	url := chatCompletionsURL(mp.cfg.APIURL)
+	mp.logger.Info("calling moderation API", zap.String("comment_id", commentID), zap.String("url", url))
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	if mp.cfg.APIToken != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+mp.cfg.APIToken)
-	}
+	token := strings.TrimSpace(mp.cfg.APIToken)
+	httpReq.Header.Set("Authorization", "Bearer "+token)
 
-	httpClient := &http.Client{Timeout: 30 * time.Second}
-	resp, err := httpClient.Do(httpReq)
+	resp, err := (&http.Client{Timeout: 45 * time.Second}).Do(httpReq)
 	if err != nil {
+		mp.logger.Error("moderation request failed", zap.String("comment_id", commentID), zap.Error(err))
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", fmt.Sprintf("request failed: %v", err))
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "failed to read moderation response")
+	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		mp.logger.Error("moderation API error",
+			zap.String("comment_id", commentID),
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", truncate(string(respBody), 500)),
+		)
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", fmt.Sprintf("moderation api status %d", resp.StatusCode))
 	}
 
-	// Parse chat-completions response
 	var ccResp struct {
 		Choices []struct {
 			Message struct {
-				Role    string `json:"role"`
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&ccResp); err != nil {
+	if err := json.Unmarshal(respBody, &ccResp); err != nil {
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "invalid response JSON")
 	}
 
-	var approved bool
-	var reason string
-	if len(ccResp.Choices) > 0 && strings.TrimSpace(ccResp.Choices[0].Message.Content) != "" {
-		var inner map[string]interface{}
-		if err := json.Unmarshal([]byte(ccResp.Choices[0].Message.Content), &inner); err == nil {
-			if b, exists := inner["ok"].(bool); exists {
-				approved = b
-			}
-			if s, exists := inner["reason"].(string); exists {
-				reason = s
-			}
-		}
+	if len(ccResp.Choices) == 0 || strings.TrimSpace(ccResp.Choices[0].Message.Content) == "" {
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "empty moderation response")
+	}
+
+	rawContent := ccResp.Choices[0].Message.Content
+	approved, reason, err := parseModerationDecision(rawContent)
+	if err != nil {
+		mp.logger.Error("failed to parse moderation decision",
+			zap.String("comment_id", commentID),
+			zap.String("content", truncate(rawContent, 500)),
+			zap.Error(err),
+		)
+		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "error", "invalid moderation decision JSON")
 	}
 
 	if approved {
+		mp.logger.Info("comment approved by moderation", zap.String("comment_id", commentID))
 		return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "published", "")
 	}
+
 	if reason == "" {
 		reason = "rejected by moderation"
 	}
+	mp.logger.Info("comment rejected by moderation", zap.String("comment_id", commentID), zap.String("reason", reason))
 	return mp.mongoClient.UpdateCommentStatus(ctx, commentID, "rejected", reason)
 }
 
-// helper: object id validation (unused here but left for clarity)
-func isValidObjectID(id string) bool {
-	_, err := primitive.ObjectIDFromHex(id)
-	return err == nil
+func chatCompletionsURL(base string) string {
+	base = strings.TrimRight(base, "/")
+	var url string
+	switch {
+	case strings.Contains(base, "/chat/completions"):
+		url = base
+	case strings.HasSuffix(base, "/v1"):
+		url = base + "/chat/completions"
+	default:
+		url = base + "/api/v1/chat/completions"
+	}
+	if !strings.Contains(url, "agent=") {
+		if strings.Contains(url, "?") {
+			url += "&agent=true"
+		} else {
+			url += "?agent=true"
+		}
+	}
+	return url
+}
+
+func parseModerationDecision(content string) (approved bool, reason string, err error) {
+	jsonStr := extractJSONObject(content)
+	if jsonStr == "" {
+		return false, "", fmt.Errorf("no JSON object in response")
+	}
+
+	var decision map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &decision); err != nil {
+		return false, "", err
+	}
+
+	okVal, exists := decision["ok"]
+	if !exists {
+		return false, "", fmt.Errorf("missing ok field")
+	}
+
+	switch v := okVal.(type) {
+	case bool:
+		approved = v
+	default:
+		return false, "", fmt.Errorf("ok field is not boolean")
+	}
+
+	if s, ok := decision["reason"].(string); ok {
+		reason = s
+	}
+	return approved, reason, nil
+}
+
+func extractJSONObject(s string) string {
+	start := strings.Index(s, "{")
+	end := strings.LastIndex(s, "}")
+	if start >= 0 && end > start {
+		return s[start : end+1]
+	}
+	return ""
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }

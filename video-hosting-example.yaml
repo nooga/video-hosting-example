@@ -1,5 +1,45 @@
 namespace: video-hosting-example
 
+video-hosting-moderation-agent-v3:
+  defines: digitalocean-agent/agent
+  name: <- $environment "-comment-moderation-agent-v3" concat-all
+  instruction: |
+    You moderate comments for a video hosting platform.
+    Review the submitted comment and determine whether it is acceptable.
+    Return strict JSON only, with exactly these fields:
+    {
+      "ok": boolean,
+      "category": string,
+      "reason": string,
+      "confidence": number
+    }
+    Rules:
+    - ok must be true only when the comment is safe to publish.
+    - category must be one of: approved, spam, harassment, hate, sexual, violence, self-harm, illegal, other.
+    - reason must be a short plain-language explanation.
+    - confidence must be a number between 0 and 1.
+    - Do not include markdown, code fences, extra keys, or any text outside the JSON object.
+  model_id: OpenAI GPT-oss-20b
+  project_id: ""
+  tags:
+    - video-hosting-example
+    - environment:production
+    - credential-rotation:endpoint-api-key-v3
+  region: tor1
+  publish: true
+  checks:
+    readiness:
+      period: 15
+      attempts: 10
+      initialDelay: 5
+  services:
+    data:
+      protocol: custom
+  variables:
+    environment:
+      type: string
+      value: production
+
 spaces-keys:
   defines: digitalocean-spaces/spaces-keys
   name: video-hosting-example-spaces-keys
@@ -246,6 +286,9 @@ backend:
     auth0-api:
       target: video-hosting-example/auth0-api
       service: data
+    llm-agent:
+      target: video-hosting-example/video-hosting-moderation-agent-v3
+      service: data
   depends:
     wait-for:
       runnables:
@@ -253,6 +296,7 @@ backend:
         - video-hosting-example/valkey
         - video-hosting-example/spaces-keys
         - video-hosting-example/spaces
+        - video-hosting-example/video-hosting-moderation-agent-v3
       timeout: 900
   checks:
     readiness:
@@ -335,8 +379,23 @@ backend:
     llm-enabled:
       type: bool
       env: LLM_ENABLED
-      description: Optional moderation infrastructure disabled by default.
-      value: false
+      description: Enable LLM-powered comment moderation.
+      value: true
+    llm-api-url:
+      type: string
+      env: LLM_API_URL
+      description: DigitalOcean agent endpoint for comment moderation requests.
+      value: <- connection-target("llm-agent") entity-state get-member("endpoint")
+    llm-api-token:
+      type: string
+      env: LLM_API_TOKEN
+      description: API token for the DigitalOcean moderation agent endpoint.
+      value: <- connection-target("llm-agent") entity-state get-member("endpoint_api_key")
+    llm-model:
+      type: string
+      env: LLM_MODEL
+      description: Inference model used for comment moderation.
+      value: OpenAI GPT-oss-20b
 
 worker:
   defines: runnable
@@ -359,6 +418,9 @@ worker:
     spaces-keys:
       target: video-hosting-example/spaces-keys
       service: data
+    llm-agent:
+      target: video-hosting-example/video-hosting-moderation-agent-v3
+      service: data
   depends:
     wait-for:
       runnables:
@@ -366,6 +428,7 @@ worker:
         - video-hosting-example/valkey
         - video-hosting-example/spaces-keys
         - video-hosting-example/spaces
+        - video-hosting-example/video-hosting-moderation-agent-v3
       timeout: 900
   permitted-secrets:
     do-spaces-access-key: true
@@ -433,8 +496,23 @@ worker:
     llm-enabled:
       type: bool
       env: LLM_ENABLED
-      description: Optional moderation infrastructure disabled by default.
-      value: false
+      description: Enable LLM-powered comment moderation.
+      value: true
+    llm-api-url:
+      type: string
+      env: LLM_API_URL
+      description: DigitalOcean agent endpoint for comment moderation requests.
+      value: <- connection-target("llm-agent") entity-state get-member("endpoint")
+    llm-api-token:
+      type: string
+      env: LLM_API_TOKEN
+      description: API token for the DigitalOcean moderation agent endpoint.
+      value: <- connection-target("llm-agent") entity-state get-member("endpoint_api_key")
+    llm-model:
+      type: string
+      env: LLM_MODEL
+      description: Inference model used for comment moderation.
+      value: OpenAI GPT-oss-20b
 
 endpoints:
   defines: monkec/endpoints
@@ -470,6 +548,7 @@ endpoints:
 prod:
   defines: group
   members:
+    - video-hosting-example/video-hosting-moderation-agent-v3
     - video-hosting-example/spaces-keys
     - video-hosting-example/spaces
     - video-hosting-example/mongodb

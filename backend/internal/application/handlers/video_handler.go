@@ -290,6 +290,13 @@ func (h *VideoHandler) StreamVideo(c *gin.Context) {
 	c.Header("Content-Type", "video/mp4")
 	c.Header("Accept-Ranges", "bytes")
 	c.Header("Cache-Control", "public, max-age=3600")
+	if c.Query("download") == "1" || c.Query("download") == "true" {
+		filename := filepath.Base(video.OriginalFilename)
+		if filename == "" || filename == "." {
+			filename = video.ID.Hex() + ".mp4"
+		}
+		c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	}
 
 	// Stream the file
 	_, err = io.Copy(c.Writer, object)

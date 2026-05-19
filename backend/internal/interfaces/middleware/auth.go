@@ -13,18 +13,8 @@ import (
 
 // Auth0Middleware validates incoming JWTs issued by Auth0 and attaches claims to the context
 func Auth0Middleware(domain, audience string) gin.HandlerFunc {
-	// Normalize issuer to include trailing slash, which is how it appears in Auth0 tokens
-	iss := strings.TrimSuffix(domain, "/")
-	if !strings.HasPrefix(iss, "http") {
-		iss = "https://" + iss
-	}
-	issuer := iss + "/"
-	jwksURL := issuer + ".well-known/jwks.json"
-
-	// Build a JWKS provider with background refresh
-	jwks, err := keyfunc.Get(jwksURL, keyfunc.Options{RefreshInterval: time.Hour})
-	if err != nil {
-		// If JWKS cannot be initialized, create a middleware that always fails fast
+	validate := newAuth0Validator(domain, audience)
+	if validate == nil {
 		return func(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "auth configuration error"})
 		}
@@ -37,42 +27,82 @@ func Auth0Middleware(domain, audience string) gin.HandlerFunc {
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid Authorization header"})
-			return
-		}
-
-		tokenStr := parts[1]
-		token, err := jwt.Parse(tokenStr, jwks.Keyfunc)
-		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
-			return
-		}
-
-		// Validate issuer, audience, and standard time claims
-		if !claims.VerifyIssuer(issuer, true) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid issuer"})
-			return
-		}
-		if audience != "" && !claims.VerifyAudience(audience, true) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid audience"})
-			return
-		}
-		if err := validateStandardClaims(claims); err != nil {
+		claims, err := validate(authHeader)
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
-		// Attach claims to context for handlers to use
 		c.Set("auth_claims", claims)
 		c.Next()
+	}
+}
+
+// OptionalAuth0Middleware attaches JWT claims when a valid Bearer token is present.
+// Missing or invalid tokens are ignored so public handlers can serve anonymous users too.
+func OptionalAuth0Middleware(domain, audience string) gin.HandlerFunc {
+	validate := newAuth0Validator(domain, audience)
+	if validate == nil {
+		return func(c *gin.Context) { c.Next() }
+	}
+
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.Next()
+			return
+		}
+
+		claims, err := validate(authHeader)
+		if err == nil {
+			c.Set("auth_claims", claims)
+		}
+		c.Next()
+	}
+}
+
+type auth0Validator func(authHeader string) (jwt.MapClaims, error)
+
+func newAuth0Validator(domain, audience string) auth0Validator {
+	iss := strings.TrimSuffix(domain, "/")
+	if !strings.HasPrefix(iss, "http") {
+		iss = "https://" + iss
+	}
+	issuer := iss + "/"
+	jwksURL := issuer + ".well-known/jwks.json"
+
+	jwks, err := keyfunc.Get(jwksURL, keyfunc.Options{RefreshInterval: time.Hour})
+	if err != nil {
+		return nil
+	}
+
+	return func(authHeader string) (jwt.MapClaims, error) {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			return nil, errors.New("invalid Authorization header")
+		}
+
+		token, err := jwt.Parse(parts[1], jwks.Keyfunc)
+		if err != nil || !token.Valid {
+			return nil, errors.New("invalid token")
+		}
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			return nil, errors.New("invalid token claims")
+		}
+
+		if !claims.VerifyIssuer(issuer, true) {
+			return nil, errors.New("invalid issuer")
+		}
+		if audience != "" && !claims.VerifyAudience(audience, true) {
+			return nil, errors.New("invalid audience")
+		}
+		if err := validateStandardClaims(claims); err != nil {
+			return nil, err
+		}
+
+		return claims, nil
 	}
 }
 
