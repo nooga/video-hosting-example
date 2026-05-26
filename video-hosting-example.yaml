@@ -52,7 +52,7 @@ spaces-keys:
 
 spaces:
   defines: digitalocean-spaces/spaces-bucket
-  bucket_name: vhx-videos-bucket
+  bucket_name: vhx-videos-bucket-production
   region: nyc3
   access_key_secret_ref: do-spaces-access-key
   secret_key_secret_ref: do-spaces-secret-key
@@ -118,6 +118,8 @@ valkey:
 
 frontend:
   defines: runnable
+  affinity:
+    node: video-hosting-prod-2
   containers:
     main:
       image: frontend:latest
@@ -249,6 +251,8 @@ auth0-api:
 
 backend:
   defines: runnable
+  affinity:
+    node: video-hosting-prod-2
   containers:
     main:
       image: backend:latest
